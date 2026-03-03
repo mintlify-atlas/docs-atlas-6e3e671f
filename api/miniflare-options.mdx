@@ -1,0 +1,643 @@
+---
+title: Miniflare Options Reference
+description: Complete reference for all Miniflare configuration options.
+---
+
+Miniflare accepts a comprehensive set of options for configuring Workers, bindings, and runtime behavior.
+
+## Worker Options
+
+These options configure the Worker script and module system.
+
+### `name`
+
+<ParamField path="name" type="string">
+  Unique identifier for the worker. Required when using multiple workers.
+
+  ```typescript
+  { name: "my-worker" }
+  ```
+</ParamField>
+
+### `script`
+
+<ParamField path="script" type="string">
+  Worker script contents as a string. Mutually exclusive with `scriptPath`.
+
+  ```typescript
+  {
+    script: `
+      export default {
+        async fetch(request) {
+          return new Response("Hello");
+        }
+      }
+    `,
+    modules: true
+  }
+  ```
+</ParamField>
+
+### `scriptPath`
+
+<ParamField path="scriptPath" type="string">
+  Path to the worker script file. Mutually exclusive with `script`.
+
+  ```typescript
+  { scriptPath: "./dist/worker.js" }
+  ```
+</ParamField>
+
+### `modules`
+
+<ParamField path="modules" type="boolean" default="false">
+  Whether the worker uses ES modules format (vs. service worker format).
+
+  ```typescript
+  { modules: true }
+  ```
+</ParamField>
+
+### `modulesRoot`
+
+<ParamField path="modulesRoot" type="string">
+  Root directory for resolving module imports.
+
+  ```typescript
+  { modulesRoot: "./src" }
+  ```
+</ParamField>
+
+### `modulesRules`
+
+<ParamField path="modulesRules" type="ModuleRule[]">
+  Rules for importing non-JavaScript files.
+
+  ```typescript
+  {
+    modulesRules: [
+      { type: "Text", include: ["**/*.txt"] },
+      { type: "Data", include: ["**/*.bin"] },
+      { type: "CompiledWasm", include: ["**/*.wasm"] },
+    ]
+  }
+  ```
+
+  <Expandable title="ModuleRule properties">
+    <ParamField path="type" type="string" required>
+      Module type: `"ESModule"`, `"CommonJS"`, `"Text"`, `"Data"`, or `"CompiledWasm"`
+    </ParamField>
+
+    <ParamField path="include" type="string[]" required>
+      Glob patterns to match
+    </ParamField>
+
+    <ParamField path="fallthrough" type="boolean">
+      Allow subsequent rules to match
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+## Runtime Options
+
+### `compatibilityDate`
+
+<ParamField path="compatibilityDate" type="string">
+  Compatibility date in YYYY-MM-DD format.
+
+  ```typescript
+  { compatibilityDate: "2024-01-01" }
+  ```
+</ParamField>
+
+### `compatibilityFlags`
+
+<ParamField path="compatibilityFlags" type="string[]">
+  Compatibility flags to enable.
+
+  ```typescript
+  {
+    compatibilityFlags: [
+      "nodejs_compat",
+      "streams_enable_constructors"
+    ]
+  }
+  ```
+</ParamField>
+
+### `routes`
+
+<ParamField path="routes" type="string[]">
+  Route patterns this worker handles.
+
+  ```typescript
+  {
+    routes: [
+      "example.com/*",
+      "api.example.com/v1/*"
+    ]
+  }
+  ```
+</ParamField>
+
+### `upstream`
+
+<ParamField path="upstream" type="string">
+  Upstream URL for fetch requests that don't match routes.
+
+  ```typescript
+  { upstream: "https://example.com" }
+  ```
+</ParamField>
+
+---
+
+## Server Options
+
+### `host`
+
+<ParamField path="host" type="string" default="127.0.0.1">
+  Host to bind the HTTP server to.
+
+  ```typescript
+  { host: "0.0.0.0" }
+  ```
+</ParamField>
+
+### `port`
+
+<ParamField path="port" type="number" default="0">
+  Port for the HTTP server. Use 0 for a random available port.
+
+  ```typescript
+  { port: 8787 }
+  ```
+</ParamField>
+
+### `inspectorPort`
+
+<ParamField path="inspectorPort" type="number">
+  Port for the Chrome DevTools inspector.
+
+  ```typescript
+  { inspectorPort: 9229 }
+  ```
+</ParamField>
+
+---
+
+## Logging Options
+
+### `log`
+
+<ParamField path="log" type="Log">
+  Custom logger instance.
+
+  ```typescript
+  import { Log } from "miniflare";
+
+  class CustomLog extends Log {
+    log(message: string) {
+      console.log(`[WORKER] ${message}`);
+    }
+  }
+
+  { log: new CustomLog() }
+  ```
+</ParamField>
+
+### `verbose`
+
+<ParamField path="verbose" type="boolean">
+  Enable verbose logging.
+
+  ```typescript
+  { verbose: true }
+  ```
+</ParamField>
+
+---
+
+## Binding Options
+
+### `bindings`
+
+<ParamField path="bindings" type="Record<string, any>">
+  Simple environment variables and bindings.
+
+  ```typescript
+  {
+    bindings: {
+      API_KEY: "secret",
+      DEBUG: true,
+      MAX_RETRIES: 3,
+    }
+  }
+  ```
+</ParamField>
+
+### `kvNamespaces`
+
+<ParamField path="kvNamespaces" type="Record<string, string>">
+  KV namespace bindings. Map of binding names to namespace IDs.
+
+  ```typescript
+  {
+    kvNamespaces: {
+      MY_KV: "kv-namespace-id",
+      CACHE: "cache-namespace-id",
+    }
+  }
+  ```
+</ParamField>
+
+### `durableObjects`
+
+<ParamField path="durableObjects" type="Record<string, string | DurableObjectOptions>">
+  Durable Object bindings.
+
+  ```typescript
+  {
+    durableObjects: {
+      // Simple: binding name -> class name
+      COUNTER: "Counter",
+      // Advanced: with options
+      ROOM: {
+        className: "ChatRoom",
+        scriptName: "chat-worker", // from another worker
+      },
+    }
+  }
+  ```
+
+  <Expandable title="DurableObjectOptions">
+    <ParamField path="className" type="string" required>
+      Exported class name
+    </ParamField>
+
+    <ParamField path="scriptName" type="string">
+      Worker name that exports this class (for external DOs)
+    </ParamField>
+
+    <ParamField path="unsafeUniqueKey" type="string">
+      Custom unique key for ID generation
+    </ParamField>
+
+    <ParamField path="unsafePreventEviction" type="boolean">
+      Prevent eviction from memory
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `r2Buckets`
+
+<ParamField path="r2Buckets" type="Record<string, string>">
+  R2 bucket bindings. Map of binding names to bucket names.
+
+  ```typescript
+  {
+    r2Buckets: {
+      MY_BUCKET: "my-r2-bucket",
+      ASSETS: "static-assets",
+    }
+  }
+  ```
+</ParamField>
+
+### `d1Databases`
+
+<ParamField path="d1Databases" type="Record<string, string>">
+  D1 database bindings. Map of binding names to database IDs.
+
+  ```typescript
+  {
+    d1Databases: {
+      DB: "database-id",
+      ANALYTICS: "analytics-db-id",
+    }
+  }
+  ```
+</ParamField>
+
+### `serviceBindings`
+
+<ParamField path="serviceBindings" type="Record<string, string | ServiceDesignator>">
+  Service bindings to other workers.
+
+  ```typescript
+  {
+    serviceBindings: {
+      // Simple: binding name -> worker name
+      AUTH: "auth-worker",
+      // With entrypoint
+      API: {
+        name: "api-worker",
+        entrypoint: "PublicAPI",
+      },
+    }
+  }
+  ```
+
+  <Expandable title="ServiceDesignator">
+    <ParamField path="name" type="string" required>
+      Worker name to bind to
+    </ParamField>
+
+    <ParamField path="entrypoint" type="string">
+      Named entrypoint to use
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `queueProducers`
+
+<ParamField path="queueProducers" type="Record<string, string | QueueProducerOptions>">
+  Queue producer bindings.
+
+  ```typescript
+  {
+    queueProducers: {
+      MY_QUEUE: "my-queue-name",
+      TASKS: { queueName: "background-tasks" },
+    }
+  }
+  ```
+</ParamField>
+
+### `queueConsumers`
+
+<ParamField path="queueConsumers" type="Record<string, QueueConsumerOptions>">
+  Queue consumer configuration. Map of queue names to options.
+
+  ```typescript
+  {
+    queueConsumers: {
+      "my-queue": {
+        maxBatchSize: 10,
+        maxBatchTimeout: 5,
+        maxRetries: 3,
+        deadLetterQueue: "failed-queue",
+      },
+    }
+  }
+  ```
+
+  <Expandable title="QueueConsumerOptions">
+    <ParamField path="maxBatchSize" type="number" default="10">
+      Maximum messages per batch (max: 100)
+    </ParamField>
+
+    <ParamField path="maxBatchTimeout" type="number" default="5">
+      Maximum seconds to wait before dispatching
+    </ParamField>
+
+    <ParamField path="maxRetries" type="number" default="3">
+      Number of retries on failure
+    </ParamField>
+
+    <ParamField path="deadLetterQueue" type="string">
+      Queue name for failed messages
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `analyticsEngineDatasets`
+
+<ParamField path="analyticsEngineDatasets" type="Record<string, string>">
+  Analytics Engine dataset bindings.
+
+  ```typescript
+  {
+    analyticsEngineDatasets: {
+      ANALYTICS: "dataset-name",
+    }
+  }
+  ```
+</ParamField>
+
+---
+
+## Persistence Options
+
+### `defaultPersistRoot`
+
+<ParamField path="defaultPersistRoot" type="string">
+  Default root directory for all persisted data.
+
+  ```typescript
+  { defaultPersistRoot: "./.mf" }
+  ```
+</ParamField>
+
+### `kvPersist`
+
+<ParamField path="kvPersist" type="boolean | string">
+  Enable KV persistence. `true` uses default path, or specify directory.
+
+  ```typescript
+  { kvPersist: true }
+  // or
+  { kvPersist: "./.data/kv" }
+  ```
+</ParamField>
+
+### `durableObjectsPersist`
+
+<ParamField path="durableObjectsPersist" type="boolean | string">
+  Enable Durable Objects persistence.
+
+  ```typescript
+  { durableObjectsPersist: true }
+  ```
+</ParamField>
+
+### `r2Persist`
+
+<ParamField path="r2Persist" type="boolean | string">
+  Enable R2 persistence.
+
+  ```typescript
+  { r2Persist: true }
+  ```
+</ParamField>
+
+### `d1Persist`
+
+<ParamField path="d1Persist" type="boolean | string">
+  Enable D1 persistence.
+
+  ```typescript
+  { d1Persist: true }
+  ```
+</ParamField>
+
+### `cachePersist`
+
+<ParamField path="cachePersist" type="boolean | string">
+  Enable Cache API persistence.
+
+  ```typescript
+  { cachePersist: true }
+  ```
+</ParamField>
+
+---
+
+## Multi-Worker Options
+
+For running multiple workers in the same Miniflare instance:
+
+```typescript
+const mf = new Miniflare({
+  workers: [
+    {
+      name: "api",
+      scriptPath: "./api.js",
+      modules: true,
+      routes: ["api.example.com/*"],
+      serviceBindings: {
+        AUTH: "auth",
+      },
+    },
+    {
+      name: "auth",
+      scriptPath: "./auth.js",
+      modules: true,
+      d1Databases: {
+        DB: "users-db",
+      },
+    },
+  ],
+  // Shared options
+  defaultPersistRoot: "./.mf",
+  d1Persist: true,
+});
+```
+
+### `workers`
+
+<ParamField path="workers" type="WorkerOptions[]">
+  Array of worker configurations. Each worker has all the options listed above plus a required `name`.
+</ParamField>
+
+---
+
+## Advanced Options
+
+### `cf`
+
+<ParamField path="cf" type="object">
+  Custom `request.cf` object properties.
+
+  ```typescript
+  {
+    cf: {
+      colo: "SJC",
+      country: "US",
+      city: "San Francisco",
+    }
+  }
+  ```
+</ParamField>
+
+### `unsafeEvalBinding`
+
+<ParamField path="unsafeEvalBinding" type="string">
+  Binding name for unsafe eval functionality (for REPL-like use cases).
+
+  <Warning>
+  Only use this for development tools. Never in production.
+  </Warning>
+
+  ```typescript
+  { unsafeEvalBinding: "UNSAFE_EVAL" }
+  ```
+</ParamField>
+
+### `liveReload`
+
+<ParamField path="liveReload" type="boolean">
+  Inject live reload script into HTML responses.
+
+  ```typescript
+  { liveReload: true }
+  ```
+</ParamField>
+
+### `mounts`
+
+<ParamField path="mounts" type="Record<string, MiniflareOptions>">
+  Mount other Miniflare instances at specific routes.
+
+  ```typescript
+  {
+    mounts: {
+      "/api": {
+        scriptPath: "./api-worker.js",
+        modules: true,
+      },
+    }
+  }
+  ```
+</ParamField>
+
+---
+
+## Complete Example
+
+```typescript
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+  // Worker configuration
+  name: "my-app",
+  scriptPath: "./dist/worker.js",
+  modules: true,
+  modulesRules: [
+    { type: "Text", include: ["**/*.txt"] },
+    { type: "CompiledWasm", include: ["**/*.wasm"] },
+  ],
+
+  // Runtime
+  compatibilityDate: "2024-01-01",
+  compatibilityFlags: ["nodejs_compat"],
+  
+  // Server
+  host: "127.0.0.1",
+  port: 8787,
+  
+  // Bindings
+  bindings: {
+    ENVIRONMENT: "development",
+    API_KEY: process.env.API_KEY,
+  },
+  kvNamespaces: {
+    CACHE: "cache-kv",
+  },
+  d1Databases: {
+    DB: "main-db",
+  },
+  r2Buckets: {
+    UPLOADS: "user-uploads",
+  },
+  durableObjects: {
+    ROOM: "ChatRoom",
+  },
+  
+  // Persistence
+  defaultPersistRoot: "./.mf",
+  kvPersist: true,
+  d1Persist: true,
+  r2Persist: true,
+  durableObjectsPersist: true,
+  
+  // Logging
+  verbose: true,
+});
+
+await mf.ready;
+const url = await mf.getServiceURL();
+console.log(`Worker running at ${url}`);
+```

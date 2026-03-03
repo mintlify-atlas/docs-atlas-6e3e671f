@@ -1,0 +1,319 @@
+---
+title: "Assets Management"
+description: "Deploy and manage static assets with Cloudflare Workers"
+---
+
+## Overview
+
+Cloudflare Workers Assets allows you to deploy static files alongside your Worker code. The asset management system handles uploading, caching, and serving static content with automatic optimization and CDN distribution.
+
+<Info>
+Assets are uploaded separately from your Worker bundle and can include HTML, CSS, JavaScript, images, and other static files up to 25 MiB per file.
+</Info>
+
+## Configuration
+
+### Basic Setup
+
+Configure assets in your `wrangler.json` file:
+
+```json wrangler.json
+{
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  }
+}
+```
+
+### Configuration Options
+
+<ParamField path="directory" type="string" required>
+  Path to the directory containing static assets. Can be relative to the config file or absolute.
+</ParamField>
+
+<ParamField path="binding" type="string">
+  Variable name to access assets from your Worker code. If omitted, assets are served directly without Worker involvement.
+</ParamField>
+
+<ParamField path="html_handling" type="string">
+  Controls how HTML files are served:
+  - `auto-trailing-slash` - Automatically add trailing slashes to directory URLs
+  - `force-trailing-slash` - Redirect all requests to include trailing slashes
+  - `drop-trailing-slash` - Remove trailing slashes from URLs
+  - `none` - Serve HTML files as-is
+</ParamField>
+
+<ParamField path="not_found_handling" type="string">
+  Behavior when a requested asset is not found:
+  - `single-page-application` - Serve `index.html` for all 404s (SPA mode)
+  - `404-page` - Serve a custom 404.html page
+  - `none` - Return standard 404 response
+</ParamField>
+
+<ParamField path="run_worker_first" type="boolean | string[]">
+  Controls routing between Worker and assets:
+  - `true` - All requests go to Worker first; use binding to fetch assets
+  - `false` - Assets are served first; Worker handles non-asset routes
+  - Array of patterns - Specific routes that should invoke Worker before assets
+</ParamField>
+
+## Asset Upload Process
+
+The asset upload system uses an intelligent incremental upload mechanism:
+
+### 1. Manifest Generation
+
+```typescript
+// Assets are hashed and cataloged
+const manifest = {
+  "index.html": { hash: "a3f5b8c...", size: 2048 },
+  "styles.css": { hash: "d9e1f2a...", size: 5120 },
+  "app.js": { hash: "7c4d3e9...", size: 15360 }
+}
+```
+
+### 2. Incremental Upload
+
+Only new or modified files are uploaded. The system:
+- Compares hashes with previously deployed assets
+- Uploads only changed files
+- Organizes uploads into buckets (max 50 MiB each)
+- Uses concurrent uploads (3 buckets at a time)
+- Implements exponential backoff on failures
+
+### 3. Size Limits
+
+<Warning>
+  Individual asset files must not exceed **25 MiB**. Files larger than this limit will cause deployment to fail.
+</Warning>
+
+## Ignoring Files
+
+Create a `.assetsignore` file in your asset directory to exclude files from upload:
+
+```plaintext .assetsignore
+# Ignore source files
+*.map
+*.ts
+*.scss
+
+# Ignore development files
+node_modules/
+.git/
+.env
+
+# Ignore build artifacts
+*.log
+tmp/
+```
+
+<Note>
+The ignore syntax follows `.gitignore` patterns. Files matching these patterns won't be uploaded to Cloudflare.
+</Note>
+
+## Worker Integration
+
+### Assets Binding
+
+Access assets from your Worker using the configured binding:
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env) {
+    // Serve assets using the binding
+    const asset = await env.ASSETS.fetch(request);
+    
+    if (asset) {
+      return asset;
+    }
+    
+    // Handle dynamic routes
+    return new Response("API response", {
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+}
+```
+
+### Custom Routing
+
+Use `run_worker_first` with patterns for fine-grained control:
+
+```json wrangler.json
+{
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/admin/*",
+      "/auth/*"
+    ]
+  }
+}
+```
+
+With this configuration:
+- `/api/*`, `/admin/*`, `/auth/*` routes invoke your Worker first
+- All other routes serve assets directly
+- Worker can fall back to assets using the binding
+
+### Headers and Redirects
+
+Add custom headers or redirects using special files:
+
+**_headers**
+```plaintext public/_headers
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Frame-Options: DENY
+```
+
+**_redirects**
+```plaintext public/_redirects
+/old-page    /new-page    301
+/blog/*      /articles/:splat  302
+/api/*       https://api.example.com/:splat  200
+```
+
+## Command Line Usage
+
+### Deploy with Assets
+
+```bash
+# Deploy Worker with assets
+wrangler deploy
+
+# Deploy with custom asset directory
+wrangler deploy --assets ./dist
+
+# Preview assets locally
+wrangler dev
+```
+
+### Asset Information
+
+During deployment, Wrangler displays upload progress:
+
+```bash
+🌀 Building list of assets...
+✨ Read 42 files from the assets directory ./public
+🌀 Starting asset upload...
+🌀 Found 8 new or modified static assets to upload.
+Uploaded 8 of 8 assets
+✨ Success! Uploaded 8 files (4 already uploaded) 1.2s
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Optimize Assets" icon="gauge-high">
+    Compress images, minify CSS/JS, and use modern formats (WebP, Brotli) before uploading.
+  </Card>
+  
+  <Card title="Cache Strategy" icon="clock">
+    Use `_headers` to set appropriate cache headers for different file types.
+  </Card>
+  
+  <Card title="Security" icon="shield">
+    Never commit sensitive files. Use `.assetsignore` to exclude `.env` and credential files.
+  </Card>
+  
+  <Card title="Smart Placement" icon="location-dot">
+    Avoid using Smart Placement with `run_worker_first: true` as it may increase latency for asset serving.
+  </Card>
+</CardGroup>
+
+## Validation Rules
+
+<Warning>
+  **Incompatible Features**
+  
+  Assets cannot be used with:
+  - Workers Sites (legacy feature)
+  - Tail consumers
+  - Assets-only Workers with bindings (must have a Worker script to use bindings)
+</Warning>
+
+## Error Handling
+
+### Common Errors
+
+**Asset directory does not exist**
+```bash
+Error: The directory specified by the "assets.directory" field does not exist:
+/path/to/missing/directory
+```
+
+Solution: Verify the path is correct and the directory exists.
+
+**Asset too large**
+```bash
+Error: Asset too large.
+Cloudflare Workers supports assets with sizes of up to 25 MiB.
+We found a file large-video.mp4 with a size of 32 MiB.
+```
+
+Solution: Reduce file size or host large files elsewhere (e.g., R2).
+
+**Legacy _worker.js detected**
+```bash
+Error: Uploading a Pages _worker.js file as an asset.
+This could expose your private server-side code to the public Internet.
+```
+
+Solution: Add `_worker.js` to `.assetsignore` or remove the file.
+
+## Advanced Examples
+
+### SPA with API Routes
+
+```json wrangler.json
+{
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  }
+}
+```
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    
+    // Handle API routes
+    if (url.pathname.startsWith('/api/')) {
+      return new Response(JSON.stringify({ data: "API response" }), {
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    
+    // Serve SPA (will return index.html for 404s)
+    return env.ASSETS.fetch(request);
+  }
+}
+```
+
+### Static Site with Custom 404
+
+```json wrangler.json
+{
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}
+```
+
+Create `public/404.html` for custom error pages.

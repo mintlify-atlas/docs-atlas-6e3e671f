@@ -1,0 +1,821 @@
+---
+title: Miniflare
+description: Local development simulator for Cloudflare Workers powered by workerd
+---
+
+Miniflare is a fully-featured, local simulator for developing and testing Cloudflare Workers. Built on top of [`workerd`](https://github.com/cloudflare/workerd) (the same runtime that powers Cloudflare Workers in production), Miniflare provides high-fidelity local development.
+
+<Info>
+**Current Version:** 4.20260305.0
+
+Miniflare requires Node.js 18.0.0 or higher. It's designed as a lower-level API for tool creators. For most development workflows, use [Wrangler](/core-tools/wrangler) or the [Cloudflare Vite plugin](https://github.com/cloudflare/workers-sdk/tree/main/packages/vite-plugin-cloudflare).
+</Info>
+
+## Installation
+
+Install Miniflare as a development dependency:
+
+```bash
+npm install miniflare --save-dev
+```
+
+## Quick Start
+
+Create a simple Worker instance:
+
+```javascript
+import { Miniflare } from "miniflare";
+
+// Create a new Miniflare instance, starting a workerd server
+const mf = new Miniflare({
+  script: `
+    addEventListener("fetch", (event) => {
+      event.respondWith(new Response("Hello Miniflare!"));
+    })
+  `,
+});
+
+// Send a request to the workerd server
+const response = await mf.dispatchFetch("http://localhost:8787/");
+console.log(await response.text()); // "Hello Miniflare!"
+
+// Cleanup Miniflare, shutting down the workerd server
+await mf.dispose();
+```
+
+## Core Features
+
+<CardGroup cols={2}>
+  <Card title="workerd Runtime" icon="gear">
+    Uses the same runtime as production Workers for accurate simulation
+  </Card>
+  <Card title="Full API Support" icon="puzzle-piece">
+    Supports KV, R2, D1, Durable Objects, Queues, and more
+  </Card>
+  <Card title="DevTools Integration" icon="bug">
+    Debug with Chrome DevTools and sourcemap support
+  </Card>
+  <Card title="Flexible Persistence" icon="floppy-disk">
+    Store data in-memory or persist to disk
+  </Card>
+</CardGroup>
+
+## Basic Configuration
+
+### Module Workers
+
+```javascript
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+  modules: true,
+  scriptPath: "./src/index.ts",
+  compatibilityDate: "2024-03-01",
+});
+```
+
+### Service Worker Format
+
+```javascript
+const mf = new Miniflare({
+  script: `
+    addEventListener("fetch", (event) => {
+      event.respondWith(handleRequest(event.request));
+    });
+    
+    async function handleRequest(request) {
+      return new Response("Hello World!");
+    }
+  `,
+});
+```
+
+### With TypeScript
+
+```typescript
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+  modules: true,
+  scriptPath: "./src/index.ts",
+  modulesRules: [
+    { type: "ESModule", include: ["**/*.ts"], fallthrough: false },
+  ],
+});
+```
+
+## Bindings
+
+### KV Namespaces
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request, env) {
+        await env.MY_KV.put("key", "value");
+        const value = await env.MY_KV.get("key");
+        return new Response(value);
+      }
+    }
+  `,
+  kvNamespaces: ["MY_KV"],
+});
+
+// Access KV namespace from Node.js
+const kv = await mf.getKVNamespace("MY_KV");
+await kv.put("external-key", "external-value");
+```
+
+### R2 Buckets
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request, env) {
+        await env.MY_BUCKET.put("file.txt", "Hello R2!");
+        const object = await env.MY_BUCKET.get("file.txt");
+        return new Response(await object.text());
+      }
+    }
+  `,
+  r2Buckets: ["MY_BUCKET"],
+});
+
+// Access R2 bucket from Node.js
+const bucket = await mf.getR2Bucket("MY_BUCKET");
+await bucket.put("file.txt", "Content from Node.js");
+```
+
+### D1 Databases
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request, env) {
+        const result = await env.DB.prepare(
+          "SELECT * FROM users WHERE id = ?"
+        ).bind(1).first();
+        return Response.json(result);
+      }
+    }
+  `,
+  d1Databases: ["DB"],
+});
+
+// Access D1 database from Node.js
+const db = await mf.getD1Database("DB");
+await db.exec(`
+  CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+  INSERT INTO users (id, name) VALUES (1, 'Alice');
+`);
+```
+
+### Durable Objects
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export class Counter {
+      constructor(state, env) {
+        this.state = state;
+      }
+      
+      async fetch(request) {
+        let count = (await this.state.storage.get("count")) || 0;
+        count++;
+        await this.state.storage.put("count", count);
+        return new Response(count.toString());
+      }
+    }
+    
+    export default {
+      async fetch(request, env) {
+        const id = env.COUNTER.idFromName("global");
+        const stub = env.COUNTER.get(id);
+        return stub.fetch(request);
+      }
+    }
+  `,
+  durableObjects: {
+    COUNTER: "Counter",
+  },
+});
+
+// Access Durable Object from Node.js
+const ns = await mf.getDurableObjectNamespace("COUNTER");
+const id = ns.idFromName("global");
+const stub = ns.get(id);
+const response = await stub.fetch("http://fake-host/");
+```
+
+### Environment Variables
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request, env) {
+        return new Response(env.API_URL);
+      }
+    }
+  `,
+  bindings: {
+    API_URL: "https://api.example.com",
+    DEBUG: true,
+  },
+});
+```
+
+### Queues
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request, env) {
+        await env.MY_QUEUE.send({ message: "Hello Queue!" });
+        return new Response("Message sent");
+      },
+      async queue(batch, env) {
+        for (const message of batch.messages) {
+          console.log("Received:", message.body);
+        }
+      }
+    }
+  `,
+  queueProducers: ["MY_QUEUE"],
+  queueConsumers: {
+    MY_QUEUE: { maxBatchSize: 10, maxBatchTimeout: 5 },
+  },
+});
+```
+
+## Service Bindings
+
+### Worker-to-Worker Communication
+
+```javascript
+const mf = new Miniflare({
+  workers: [
+    {
+      name: "main",
+      modules: true,
+      script: `
+        export default {
+          async fetch(request, env) {
+            const response = await env.API.fetch(request);
+            return response;
+          }
+        }
+      `,
+      serviceBindings: {
+        API: "api-worker",
+      },
+    },
+    {
+      name: "api-worker",
+      modules: true,
+      script: `
+        export default {
+          async fetch(request) {
+            return new Response("API Response");
+          }
+        }
+      `,
+    },
+  ],
+});
+```
+
+### Custom Fetch Handler
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request, env) {
+        return env.CUSTOM_SERVICE.fetch(request);
+      }
+    }
+  `,
+  serviceBindings: {
+    CUSTOM_SERVICE: async (request, miniflare) => {
+      // Custom logic in Node.js
+      return new Response("Custom response from Node.js");
+    },
+  },
+});
+```
+
+### External HTTP Service
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request, env) {
+        return env.EXTERNAL_API.fetch("https://api.external.com/data");
+      }
+    }
+  `,
+  serviceBindings: {
+    EXTERNAL_API: {
+      external: {
+        address: "api.external.com:443",
+        https: { certificateHost: "api.external.com" },
+      },
+    },
+  },
+});
+```
+
+## Persistence
+
+Miniflare supports flexible persistence options for data storage.
+
+### In-Memory Storage (Default)
+
+```javascript
+const mf = new Miniflare({
+  kvPersist: false,
+  r2Persist: false,
+  d1Persist: false,
+  durableObjectsPersist: false,
+});
+```
+
+### File-System Persistence
+
+```javascript
+const mf = new Miniflare({
+  // Persist to default location (.mf in current directory)
+  kvPersist: true,
+  r2Persist: true,
+  d1Persist: true,
+  
+  // Or specify custom paths
+  // kvPersist: "./data/kv",
+  // r2Persist: "./data/r2",
+  // d1Persist: "./data/d1",
+});
+```
+
+### Using defaultPersistRoot
+
+```javascript
+const mf = new Miniflare({
+  defaultPersistRoot: "./storage",
+  kvPersist: true,      // → ./storage/kv
+  d1Persist: true,      // → ./storage/d1
+  r2Persist: false,     // → in-memory
+});
+```
+
+## HTTP Server
+
+### Custom Host and Port
+
+```javascript
+const mf = new Miniflare({
+  host: "0.0.0.0",
+  port: 3000,
+  script: `
+    export default {
+      async fetch(request) {
+        return new Response("Server running on custom port!");
+      }
+    }
+  `,
+  modules: true,
+});
+
+const url = await mf.ready;
+console.log(`Server running at ${url}`);
+```
+
+### HTTPS Server
+
+```javascript
+import { Miniflare } from "miniflare";
+import { readFileSync } from "fs";
+
+const mf = new Miniflare({
+  httpsKeyPath: "./key.pem",
+  httpsCertPath: "./cert.pem",
+  // Or provide as strings:
+  // httpsKey: readFileSync("./key.pem", "utf8"),
+  // httpsCert: readFileSync("./cert.pem", "utf8"),
+  modules: true,
+  script: `
+    export default {
+      async fetch(request) {
+        return new Response("HTTPS enabled!");
+      }
+    }
+  `,
+});
+```
+
+<Tip>
+Generate a self-signed certificate for local development:
+```bash
+openssl req -newkey rsa:2048 -nodes -keyout key.pem -x509 -days 365 -out cert.pem
+```
+</Tip>
+
+## Debugging
+
+### Chrome DevTools
+
+```javascript
+const mf = new Miniflare({
+  inspectorPort: 9229,
+  modules: true,
+  scriptPath: "./src/index.ts",
+});
+```
+
+Then:
+1. Open `chrome://inspect` in Chrome
+2. Click "inspect" next to your Worker
+3. Use breakpoints, console, and profiler
+
+### Verbose Logging
+
+```javascript
+import { Miniflare, Log, LogLevel } from "miniflare";
+
+const log = new Log(LogLevel.VERBOSE);
+
+const mf = new Miniflare({
+  log,
+  verbose: true, // Enable workerd verbose logging
+  modules: true,
+  script: `
+    export default {
+      async fetch(request) {
+        console.log("Request received");
+        return new Response("OK");
+      }
+    }
+  `,
+});
+```
+
+### Custom Logger
+
+```javascript
+import { Miniflare, Log, LogLevel } from "miniflare";
+
+class CustomLog extends Log {
+  log(message) {
+    // Custom logging logic
+    console.log(`[CUSTOM] ${message}`);
+  }
+}
+
+const mf = new Miniflare({
+  log: new CustomLog(LogLevel.INFO),
+  // ... other options
+});
+```
+
+## Advanced Features
+
+### Live Reload
+
+```javascript
+const mf = new Miniflare({
+  liveReload: true,
+  modules: true,
+  scriptPath: "./src/index.ts",
+});
+
+// Update configuration without restarting
+await mf.setOptions({
+  modules: true,
+  scriptPath: "./src/index.ts",
+  bindings: { NEW_VAR: "updated" },
+});
+```
+
+<Note>
+Changes made via `setOptions()` will trigger a page reload when `liveReload: true` is enabled.
+</Note>
+
+### Workers Sites / Static Assets
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    import manifest from "__STATIC_CONTENT_MANIFEST";
+    
+    export default {
+      async fetch(request, env) {
+        // Serve static files from sitePath
+        return env.__STATIC_CONTENT.fetch(request);
+      }
+    }
+  `,
+  sitePath: "./public",
+  siteInclude: ["**/*.html", "**/*.css", "**/*.js"],
+  siteExclude: ["**/*.map"],
+});
+```
+
+### Wrapped Bindings
+
+Create custom bindings with JavaScript:
+
+```javascript
+const mf = new Miniflare({
+  workers: [
+    {
+      modules: true,
+      script: `
+        export default {
+          async fetch(request, env) {
+            const value = await env.CUSTOM.get("key");
+            return new Response(value);
+          }
+        }
+      `,
+      wrappedBindings: {
+        CUSTOM: {
+          scriptName: "custom-binding",
+          bindings: { PREFIX: "custom:" },
+        },
+      },
+    },
+    {
+      name: "custom-binding",
+      modules: true,
+      script: `
+        class CustomBinding {
+          constructor(env) {
+            this.prefix = env.PREFIX;
+          }
+          
+          async get(key) {
+            return this.prefix + key;
+          }
+        }
+        
+        export default function(env) {
+          return new CustomBinding(env);
+        }
+      `,
+    },
+  ],
+});
+```
+
+### Outbound Service
+
+Intercept all outbound `fetch()` requests:
+
+```javascript
+const mf = new Miniflare({
+  modules: true,
+  script: `
+    export default {
+      async fetch(request) {
+        // This fetch will go through outboundService
+        const response = await fetch("https://api.example.com/data");
+        return response;
+      }
+    }
+  `,
+  outboundService: async (request) => {
+    console.log("Outbound request to:", request.url);
+    // Mock the response
+    return new Response(JSON.stringify({ mocked: true }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  },
+});
+```
+
+### Multiple Workers
+
+```javascript
+const mf = new Miniflare({
+  workers: [
+    {
+      name: "frontend",
+      routes: ["example.com/*"],
+      modules: true,
+      script: `
+        export default {
+          async fetch(request, env) {
+            return env.BACKEND.fetch(request);
+          }
+        }
+      `,
+      serviceBindings: {
+        BACKEND: "backend",
+      },
+    },
+    {
+      name: "backend",
+      modules: true,
+      script: `
+        export default {
+          async fetch(request) {
+            return new Response("Backend response");
+          }
+        }
+      `,
+    },
+  ],
+});
+```
+
+## Testing
+
+Miniflare is perfect for testing Workers:
+
+```typescript
+import { Miniflare } from "miniflare";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+
+describe("Worker Tests", () => {
+  let mf: Miniflare;
+
+  beforeAll(() => {
+    mf = new Miniflare({
+      modules: true,
+      scriptPath: "./src/index.ts",
+      kvNamespaces: ["TEST_KV"],
+    });
+  });
+
+  afterAll(() => mf.dispose());
+
+  it("should return 200", async () => {
+    const response = await mf.dispatchFetch("http://localhost/");
+    expect(response.status).toBe(200);
+  });
+
+  it("should store in KV", async () => {
+    const kv = await mf.getKVNamespace("TEST_KV");
+    await kv.put("test-key", "test-value");
+    
+    const value = await kv.get("test-key");
+    expect(value).toBe("test-value");
+  });
+});
+```
+
+## API Reference
+
+### Miniflare Constructor
+
+```typescript
+const mf = new Miniflare(options: MiniflareOptions);
+```
+
+### Core Methods
+
+```typescript
+// Wait for server to be ready
+const url: URL = await mf.ready;
+
+// Dispatch a fetch event
+const response: Response = await mf.dispatchFetch(input, init?);
+
+// Update configuration
+await mf.setOptions(options: MiniflareOptions);
+
+// Get bindings for a worker
+const bindings = await mf.getBindings<Env>(workerName?);
+
+// Get a worker's fetch handler
+const worker: Fetcher = await mf.getWorker(workerName?);
+
+// Get storage instances
+const kv = await mf.getKVNamespace(bindingName, workerName?);
+const bucket = await mf.getR2Bucket(bindingName, workerName?);
+const db = await mf.getD1Database(bindingName, workerName?);
+const namespace = await mf.getDurableObjectNamespace(bindingName, workerName?);
+const queue = await mf.getQueueProducer(bindingName, workerName?);
+const caches = await mf.getCaches();
+
+// Get cf object
+const cf = await mf.getCf();
+
+// Cleanup
+await mf.dispose();
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Dispose">
+    Always call `dispose()` when you're done to clean up resources:
+    
+    ```javascript
+    const mf = new Miniflare({ ... });
+    try {
+      // Your code
+    } finally {
+      await mf.dispose();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Persistence for Development">
+    Persist data during development to avoid losing state:
+    
+    ```javascript
+    const mf = new Miniflare({
+      defaultPersistRoot: "./.mf",
+      kvPersist: true,
+      d1Persist: true,
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Separate Test Data">
+    Use in-memory storage for tests to avoid side effects:
+    
+    ```javascript
+    const mf = new Miniflare({
+      kvPersist: false,
+      d1Persist: false,
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Match Production Configuration">
+    Use the same `compatibilityDate` and flags as production:
+    
+    ```javascript
+    const mf = new Miniflare({
+      compatibilityDate: "2024-03-01",
+      compatibilityFlags: ["nodejs_compat"],
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Environment Variables
+
+### MINIFLARE_WORKERD_PATH
+
+Use a custom `workerd` binary:
+
+```bash
+export MINIFLARE_WORKERD_PATH="/path/to/workerd"
+```
+
+### MINIFLARE_WORKERD_CONFIG_DEBUG
+
+Dump the workerd configuration for debugging:
+
+```bash
+export MINIFLARE_WORKERD_CONFIG_DEBUG="./workerd-config.json"
+```
+
+## Comparison with Wrangler Dev
+
+| Feature | Miniflare | Wrangler Dev |
+|---------|-----------|-------------|
+| **Use Case** | Programmatic API, testing | CLI-based development |
+| **API** | JavaScript/TypeScript API | Command-line interface |
+| **Configuration** | JavaScript objects | wrangler.jsonc file |
+| **Integration** | Embed in tools | Standalone tool |
+| **Runtime** | workerd | workerd |
+
+<Tip>
+For most development workflows, use **Wrangler Dev**. Use Miniflare when you need programmatic control or are building tooling.
+</Tip>
+
+## Additional Resources
+
+- [Miniflare GitHub Repository](https://github.com/cloudflare/workers-sdk/tree/main/packages/miniflare)
+- [workerd Runtime](https://github.com/cloudflare/workerd)
+- [Workers Runtime APIs](https://developers.cloudflare.com/workers/runtime-apis/)
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Wrangler" href="/core-tools/wrangler">
+    CLI for Workers development and deployment
+  </Card>
+  <Card title="Vitest Pool Workers" href="/api/vitest-pool-workers">
+    Test Workers with Vitest in the actual runtime
+  </Card>
+</CardGroup>

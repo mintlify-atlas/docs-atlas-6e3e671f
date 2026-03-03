@@ -1,0 +1,512 @@
+---
+title: 'wrangler pages'
+description: 'Configure Cloudflare Pages'
+---
+
+The `wrangler pages` command provides tools for deploying and managing Cloudflare Pages projects.
+
+## pages deploy
+
+Deploy a directory of static assets as a Pages deployment.
+
+```bash
+wrangler pages deploy [directory]
+```
+
+<ParamField path="directory" type="string">
+  The directory of static files to upload
+</ParamField>
+
+### Options
+
+<ParamField path="--project-name" type="string">
+  The name of the project you want to deploy to
+</ParamField>
+
+<ParamField path="--branch" type="string">
+  The name of the branch you want to deploy to
+</ParamField>
+
+<ParamField path="--commit-hash" type="string">
+  The SHA to attach to this deployment
+</ParamField>
+
+<ParamField path="--commit-message" type="string">
+  The commit message to attach to this deployment
+</ParamField>
+
+<ParamField path="--commit-dirty" type="boolean">
+  Whether or not the workspace should be considered dirty for this deployment
+</ParamField>
+
+<ParamField path="--skip-caching" type="boolean">
+  Skip asset caching which speeds up builds
+</ParamField>
+
+<ParamField path="--no-bundle" type="boolean">
+  Whether to run bundling on `_worker.js` before deploying
+</ParamField>
+
+<ParamField path="--upload-source-maps" type="boolean" default="false">
+  Whether to upload any server-side sourcemaps with this deployment
+</ParamField>
+
+### Example
+
+```bash
+# Deploy the current directory
+wrangler pages deploy .
+
+# Deploy a specific directory
+wrangler pages deploy ./dist
+
+# Deploy with specific project and branch
+wrangler pages deploy ./public --project-name my-site --branch main
+
+# Deploy with commit information
+wrangler pages deploy ./build --commit-hash abc123 --commit-message "Update homepage"
+```
+
+## pages dev
+
+Develop your full-stack Pages application locally.
+
+```bash
+wrangler pages dev [directory] [-- command]
+```
+
+<ParamField path="directory" type="string">
+  The directory of static assets to serve
+</ParamField>
+
+<ParamField path="command" type="string">
+  The proxy command to run (deprecated)
+</ParamField>
+
+### Options
+
+<ParamField path="--port" type="number" default="8788">
+  The port to listen on (serve from)
+</ParamField>
+
+<ParamField path="--ip" type="string">
+  The IP address to listen on
+</ParamField>
+
+<ParamField path="--inspector-port" type="number">
+  Port for devtools to connect to
+</ParamField>
+
+<ParamField path="--compatibility-date" type="string">
+  Date to use for compatibility checks
+</ParamField>
+
+<ParamField path="--compatibility-flags" type="string[]">
+  Flags to use for compatibility checks
+</ParamField>
+
+<ParamField path="--no-bundle" type="boolean">
+  Whether to run bundling on `_worker.js`
+</ParamField>
+
+<ParamField path="--live-reload" type="boolean" default="false">
+  Auto reload HTML pages when change is detected
+</ParamField>
+
+<ParamField path="--local-protocol" type="'http' | 'https'">
+  Protocol to listen to requests on, defaults to http
+</ParamField>
+
+<ParamField path="--https-key-path" type="string">
+  Path to a custom certificate key
+</ParamField>
+
+<ParamField path="--https-cert-path" type="string">
+  Path to a custom certificate
+</ParamField>
+
+<ParamField path="--persist-to" type="string">
+  Specify directory to use for local persistence (defaults to .wrangler/state)
+</ParamField>
+
+<ParamField path="--log-level" type="'debug' | 'info' | 'log' | 'warn' | 'error' | 'none'">
+  Specify logging level
+</ParamField>
+
+<ParamField path="--show-interactive-dev-session" type="boolean">
+  Show interactive dev session (defaults to true if the terminal supports interactivity)
+</ParamField>
+
+### Binding Options
+
+<ParamField path="--binding" type="string[]" short="b">
+  Bind variable/secret (KEY=VALUE)
+</ParamField>
+
+<ParamField path="--kv" type="string[]" short="k">
+  KV namespace to bind (--kv KV_BINDING)
+</ParamField>
+
+<ParamField path="--d1" type="string[]">
+  D1 database to bind (--d1 D1_BINDING)
+</ParamField>
+
+<ParamField path="--do" type="string[]" short="o">
+  Durable Object to bind (--do DO_BINDING=CLASS_NAME@SCRIPT_NAME)
+</ParamField>
+
+<ParamField path="--r2" type="string[]">
+  R2 bucket to bind (--r2 R2_BINDING)
+</ParamField>
+
+<ParamField path="--ai" type="string">
+  AI to bind (--ai AI_BINDING)
+</ParamField>
+
+<ParamField path="--service" type="string[]" short="s">
+  Service to bind (--service SERVICE=SCRIPT_NAME)
+</ParamField>
+
+### Example
+
+```bash
+# Serve static files from current directory
+wrangler pages dev .
+
+# Serve with specific port
+wrangler pages dev ./public --port 3000
+
+# Serve with bindings
+wrangler pages dev . --kv MY_KV --d1 MY_DB
+
+# Serve with live reload
+wrangler pages dev ./dist --live-reload
+```
+
+## pages project
+
+Interact with your Pages projects.
+
+### pages project list
+
+List your Cloudflare Pages projects.
+
+```bash
+wrangler pages project list
+```
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### pages project create
+
+Create a new Cloudflare Pages project.
+
+```bash
+wrangler pages project create [project-name]
+```
+
+<ParamField path="project-name" type="string" required>
+  The name of your Pages project
+</ParamField>
+
+<ParamField path="--production-branch" type="string">
+  The name of the production branch of your project
+</ParamField>
+
+<ParamField path="--compatibility-date" type="string">
+  Date to use for compatibility checks
+</ParamField>
+
+<ParamField path="--compatibility-flags" type="string[]">
+  Flags to use for compatibility checks
+</ParamField>
+
+### pages project delete
+
+Delete a Cloudflare Pages project.
+
+```bash
+wrangler pages project delete [project-name]
+```
+
+<ParamField path="project-name" type="string" required>
+  The name of your Pages project
+</ParamField>
+
+<ParamField path="--yes" type="boolean" short="y">
+  Answer "yes" to confirm project deletion
+</ParamField>
+
+### Example
+
+```bash
+# List all projects
+wrangler pages project list
+
+# Create a new project
+wrangler pages project create my-site --production-branch main
+
+# Delete a project
+wrangler pages project delete my-site --yes
+```
+
+## pages deployment
+
+Interact with the deployments of a project.
+
+### pages deployment list
+
+List deployments in your Cloudflare Pages project.
+
+```bash
+wrangler pages deployment list
+```
+
+<ParamField path="--project-name" type="string">
+  The name of the project you would like to list deployments for
+</ParamField>
+
+<ParamField path="--environment" type="'production' | 'preview'">
+  Environment type to list deployments for
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### pages deployment delete
+
+Delete a deployment in your Cloudflare Pages project.
+
+```bash
+wrangler pages deployment delete [deployment-id]
+```
+
+<ParamField path="deployment-id" type="string" required>
+  The ID of the deployment to delete
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  The name of the project the deployment belongs to
+</ParamField>
+
+<ParamField path="--force" type="boolean" short="f" default="false">
+  Skip confirmation
+</ParamField>
+
+### pages deployment tail
+
+Start a tail session for a deployment.
+
+```bash
+wrangler pages deployment tail
+```
+
+<ParamField path="--project-name" type="string">
+  The name of the project
+</ParamField>
+
+<ParamField path="--deployment-id" type="string">
+  ID of the deployment to tail
+</ParamField>
+
+<ParamField path="--environment" type="'production' | 'preview'">
+  Environment to tail (production or preview)
+</ParamField>
+
+### Example
+
+```bash
+# List all deployments
+wrangler pages deployment list --project-name my-site
+
+# List production deployments only
+wrangler pages deployment list --environment production
+
+# Delete a deployment
+wrangler pages deployment delete abc123 --project-name my-site
+
+# Tail deployment logs
+wrangler pages deployment tail --project-name my-site --environment production
+```
+
+## pages secret
+
+Generate a secret that can be referenced in a Pages project.
+
+### pages secret put
+
+Create or update a secret variable for a Pages project.
+
+```bash
+wrangler pages secret put <key>
+```
+
+<ParamField path="key" type="string" required>
+  The variable name to be accessible in the Pages project
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  The name of your Pages project
+</ParamField>
+
+<ParamField path="--env" type="'production' | 'preview'" default="production">
+  Environment to add the secret to
+</ParamField>
+
+### pages secret bulk
+
+Bulk upload secrets for a Pages project.
+
+```bash
+wrangler pages secret bulk [file]
+```
+
+<ParamField path="file" type="string">
+  The file of key-value pairs to upload, as JSON or .env file. If omitted, Wrangler expects input from stdin
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  The name of your Pages project
+</ParamField>
+
+<ParamField path="--env" type="'production' | 'preview'" default="production">
+  Environment to add the secrets to
+</ParamField>
+
+### pages secret delete
+
+Delete a secret from a Pages project.
+
+```bash
+wrangler pages secret delete <key>
+```
+
+<ParamField path="key" type="string" required>
+  The name of the secret to delete
+</ParamField>
+
+<ParamField path="--project-name" type="string">
+  The name of your Pages project
+</ParamField>
+
+<ParamField path="--env" type="'production' | 'preview'" default="production">
+  Environment to delete the secret from
+</ParamField>
+
+### pages secret list
+
+List all secrets for a Pages project.
+
+```bash
+wrangler pages secret list
+```
+
+<ParamField path="--project-name" type="string">
+  The name of your Pages project
+</ParamField>
+
+<ParamField path="--env" type="'production' | 'preview'" default="production">
+  Environment to list secrets for
+</ParamField>
+
+### Example
+
+```bash
+# Add a secret (interactive prompt for value)
+wrangler pages secret put API_KEY --project-name my-site
+
+# Add a secret from stdin
+echo "secret-value" | wrangler pages secret put API_KEY
+
+# Bulk upload from JSON file
+wrangler pages secret bulk secrets.json --project-name my-site
+
+# Bulk upload from .env file
+wrangler pages secret bulk .env.production --env production
+
+# List all secrets
+wrangler pages secret list --project-name my-site
+
+# Delete a secret
+wrangler pages secret delete API_KEY --project-name my-site
+```
+
+## pages download
+
+Download settings from your project.
+
+### pages download config
+
+Download configuration from your Pages project.
+
+```bash
+wrangler pages download config [project-name]
+```
+
+<ParamField path="project-name" type="string">
+  The name of your Pages project
+</ParamField>
+
+<ParamField path="--outdir" type="string" default=".">
+  Output directory for the downloaded configuration
+</ParamField>
+
+### Example
+
+```bash
+# Download config for a project
+wrangler pages download config my-site
+
+# Download to specific directory
+wrangler pages download config my-site --outdir ./config
+```
+
+## Complete Workflow Example
+
+<Steps>
+  <Step title="Create a new Pages project">
+    ```bash
+    wrangler pages project create my-awesome-site --production-branch main
+    ```
+  </Step>
+
+  <Step title="Set up secrets for your project">
+    ```bash
+    # Add individual secrets
+    wrangler pages secret put API_KEY --project-name my-awesome-site
+    
+    # Or bulk upload from a file
+    wrangler pages secret bulk .env.production --project-name my-awesome-site
+    ```
+  </Step>
+
+  <Step title="Develop locally">
+    ```bash
+    # Start local development server
+    wrangler pages dev ./public --port 8788 --live-reload
+    ```
+  </Step>
+
+  <Step title="Deploy to production">
+    ```bash
+    # Build your site first (example with a build command)
+    npm run build
+    
+    # Deploy the built assets
+    wrangler pages deploy ./dist --project-name my-awesome-site --branch main
+    ```
+  </Step>
+
+  <Step title="Monitor your deployment">
+    ```bash
+    # List deployments
+    wrangler pages deployment list --project-name my-awesome-site
+    
+    # Tail logs for production
+    wrangler pages deployment tail --project-name my-awesome-site --environment production
+    ```
+  </Step>
+</Steps>

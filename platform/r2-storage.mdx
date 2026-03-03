@@ -1,0 +1,471 @@
+---
+title: 'R2 Object Storage'
+description: 'Manage buckets and objects in Cloudflare R2 Storage'
+---
+
+## Overview
+
+Cloudflare R2 Storage provides object storage without egress fees. Store large amounts of unstructured data with S3-compatible APIs.
+
+## Bucket Management
+
+### Create a Bucket
+
+Create a new R2 bucket:
+
+```bash
+wrangler r2 bucket create <name> [--location <hint>] [--storage-class <class>]
+```
+
+**Options:**
+- `<name>` - Bucket name (3-63 characters, lowercase, numbers, hyphens)
+- `--location <hint>` - Geographic placement hint
+  - `weur` - Western Europe
+  - `eeur` - Eastern Europe  
+  - `apac` - Asia Pacific
+  - `oc` - Oceania
+  - `wnam` - Western North America
+  - `enam` - Eastern North America
+- `--storage-class, -s` - Default storage class for uploads
+- `--jurisdiction, -J` - Data residency jurisdiction (e.g., `eu`, `fedramp`)
+- `--update-config` - Automatically add to wrangler.json
+- `--name <binding>` - Custom binding name
+
+**Examples:**
+
+```bash
+# Create a basic bucket
+wrangler r2 bucket create my-bucket
+
+# Create with location hint
+wrangler r2 bucket create my-bucket --location enam
+
+# Create with jurisdiction
+wrangler r2 bucket create eu-bucket --jurisdiction eu
+
+# Create with storage class
+wrangler r2 bucket create archive-bucket --storage-class InfrequentAccess
+```
+
+**Configuration:**
+
+```json wrangler.json
+{
+  "r2_buckets": [
+    {
+      "binding": "MY_BUCKET",
+      "bucket_name": "my-bucket"
+    }
+  ]
+}
+```
+
+### List Buckets
+
+View all R2 buckets in your account:
+
+```bash
+wrangler r2 bucket list [--jurisdiction <jurisdiction>]
+```
+
+**Example Output:**
+```
+name: my-bucket
+created: 2024-01-15T10:30:00Z
+location: enam
+object_count: 1,234
+
+name: archive-bucket  
+created: 2024-02-01T14:20:00Z
+location: weur
+object_count: 567
+```
+
+### Get Bucket Info
+
+Retrieve detailed information about a bucket:
+
+```bash
+wrangler r2 bucket info <bucket> [--jurisdiction <jurisdiction>] [--json]
+```
+
+**Options:**
+- `<bucket>` - Bucket name
+- `--jurisdiction, -J` - Bucket jurisdiction
+- `--json` - Output as JSON
+
+**Example:**
+
+```bash
+wrangler r2 bucket info my-bucket
+```
+
+**Output:**
+```
+name: my-bucket
+created: 2024-01-15T10:30:00.000Z
+location: enam
+default_storage_class: Standard
+object_count: 1,234
+bucket_size: 5.2 GB
+```
+
+### Update Bucket
+
+Update the default storage class of a bucket:
+
+```bash
+wrangler r2 bucket update storage-class <name> --storage-class <class>
+```
+
+**Options:**
+- `<name>` - Bucket name
+- `--storage-class, -s` - New default storage class (required)
+- `--jurisdiction, -J` - Bucket jurisdiction
+
+**Example:**
+
+```bash
+wrangler r2 bucket update storage-class my-bucket --storage-class InfrequentAccess
+```
+
+### Delete a Bucket
+
+Delete an empty R2 bucket:
+
+```bash
+wrangler r2 bucket delete <bucket> [--jurisdiction <jurisdiction>]
+```
+
+<Warning>
+The bucket must be empty before deletion. Delete all objects first.
+</Warning>
+
+## Object Operations
+
+<Tabs>
+  <Tab title="Upload">
+    ### Put an Object
+
+    Upload a file to R2:
+
+    ```bash
+    wrangler r2 object put <bucket>/<key> --file <path>
+    ```
+
+    **Options:**
+    - `<bucket>/<key>` - Destination path (format: `bucket/key`)
+    - `--file, -f` - Local file to upload
+    - `--pipe, -p` - Read from stdin instead of file
+    - `--content-type, --ct` - MIME type
+    - `--content-disposition, --cd` - Presentational info
+    - `--content-encoding, --ce` - Encoding applied to object
+    - `--content-language, --cl` - Content language
+    - `--cache-control, --cc` - Caching behavior
+    - `--expires` - Expiration date/time
+    - `--storage-class, -s` - Storage class for this object
+    - `--jurisdiction, -J` - Bucket jurisdiction
+    - `--local` - Upload to local R2 simulation
+    - `--persist-to` - Local persistence directory
+
+    **Examples:**
+
+    ```bash
+    # Upload a file
+    wrangler r2 object put my-bucket/images/logo.png --file ./logo.png
+
+    # Upload with content type
+    wrangler r2 object put my-bucket/data.json --file ./data.json --content-type application/json
+
+    # Upload from stdin
+    cat data.txt | wrangler r2 object put my-bucket/data.txt --pipe
+
+    # Upload with cache control
+    wrangler r2 object put my-bucket/static/app.js --file ./app.js --cache-control "max-age=3600"
+
+    # Upload with storage class
+    wrangler r2 object put my-bucket/archive/old.zip --file ./old.zip --storage-class InfrequentAccess
+    ```
+  </Tab>
+
+  <Tab title="Download">
+    ### Get an Object
+
+    Download a file from R2:
+
+    ```bash
+    wrangler r2 object get <bucket>/<key> [--file <destination>]
+    ```
+
+    **Options:**
+    - `<bucket>/<key>` - Source path
+    - `--file, -f` - Destination file path
+    - `--pipe, -p` - Write to stdout
+    - `--jurisdiction, -J` - Bucket jurisdiction
+    - `--local` - Use local R2 simulation
+    - `--persist-to` - Local persistence directory
+
+    **Examples:**
+
+    ```bash
+    # Download to current directory (uses key name)
+    wrangler r2 object get my-bucket/images/logo.png
+
+    # Download to specific file
+    wrangler r2 object get my-bucket/data.json --file ./output.json
+
+    # Pipe to stdout
+    wrangler r2 object get my-bucket/data.txt --pipe
+
+    # Pipe to another command
+    wrangler r2 object get my-bucket/archive.tar.gz --pipe | tar -xz
+    ```
+  </Tab>
+
+  <Tab title="Delete">
+    ### Delete an Object
+
+    Remove an object from R2:
+
+    ```bash
+    wrangler r2 object delete <bucket>/<key>
+    ```
+
+    **Options:**
+    - `<bucket>/<key>` - Object path to delete
+    - `--jurisdiction, -J` - Bucket jurisdiction
+    - `--local` - Use local R2 simulation
+    - `--persist-to` - Local persistence directory
+
+    **Example:**
+
+    ```bash
+    wrangler r2 object delete my-bucket/old-file.txt
+    ```
+  </Tab>
+</Tabs>
+
+## Bulk Operations
+
+### Bulk Upload (Experimental)
+
+Upload multiple files efficiently:
+
+```bash
+wrangler r2 bulk put <bucket> --filename <mapping-file> [--concurrency <n>]
+```
+
+**Options:**
+- `<bucket>` - Target bucket name
+- `--filename, -f` - JSON file with key/file mappings
+- `--concurrency` - Concurrent uploads (default: 20)
+- All standard put options (content-type, cache-control, etc.)
+
+**Mapping File Format:**
+
+```json
+[
+  {
+    "key": "images/photo1.jpg",
+    "file": "./uploads/photo1.jpg"
+  },
+  {
+    "key": "images/photo2.jpg",
+    "file": "./uploads/photo2.jpg"
+  }
+]
+```
+
+**Example:**
+
+```bash
+wrangler r2 bulk put my-bucket --filename ./uploads.json --concurrency 50
+```
+
+## Advanced Features
+
+<CardGroup cols={2}>
+  <Card title="CORS Configuration" icon="globe">
+    Configure Cross-Origin Resource Sharing:
+
+    ```bash
+    wrangler r2 bucket cors put <bucket> --rules <file>
+    ```
+
+    View CORS rules:
+    ```bash
+    wrangler r2 bucket cors get <bucket>
+    ```
+
+    Delete CORS rules:
+    ```bash
+    wrangler r2 bucket cors delete <bucket>
+    ```
+  </Card>
+
+  <Card title="Custom Domains" icon="link">
+    Connect a custom domain to your bucket:
+
+    ```bash
+    wrangler r2 bucket domain add <bucket> <domain>
+    ```
+
+    List domains:
+    ```bash
+    wrangler r2 bucket domain list <bucket>
+    ```
+
+    Remove domain:
+    ```bash
+    wrangler r2 bucket domain remove <bucket> <domain>
+    ```
+  </Card>
+
+  <Card title="Lifecycle Rules" icon="clock">
+    Manage object lifecycle:
+
+    ```bash
+    wrangler r2 bucket lifecycle put <bucket> --rules <file>
+    ```
+
+    View lifecycle:
+    ```bash
+    wrangler r2 bucket lifecycle get <bucket>
+    ```
+
+    Delete lifecycle:
+    ```bash
+    wrangler r2 bucket lifecycle delete <bucket>
+    ```
+  </Card>
+
+  <Card title="Object Locking" icon="lock">
+    Enable WORM (Write Once Read Many):
+
+    ```bash
+    wrangler r2 bucket lock enable <bucket>
+    ```
+
+    Get lock status:
+    ```bash
+    wrangler r2 bucket lock get <bucket>
+    ```
+  </Card>
+</CardGroup>
+
+## Worker Integration
+
+Access R2 from your Worker:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    const bucket = env.MY_BUCKET;
+
+    // Upload an object
+    await bucket.put("file.txt", "Hello World", {
+      httpMetadata: {
+        contentType: "text/plain",
+        cacheControl: "max-age=3600"
+      },
+      customMetadata: {
+        uploadedBy: "user-123"
+      }
+    });
+
+    // Download an object
+    const object = await bucket.get("file.txt");
+    if (object === null) {
+      return new Response("Not found", { status: 404 });
+    }
+
+    // Return object with correct headers
+    return new Response(object.body, {
+      headers: {
+        "Content-Type": object.httpMetadata.contentType || "application/octet-stream",
+        "Cache-Control": object.httpMetadata.cacheControl || ""
+      }
+    });
+
+    // List objects
+    const list = await bucket.list({ prefix: "uploads/" });
+    const keys = list.objects.map(obj => obj.key);
+
+    // Delete an object
+    await bucket.delete("old-file.txt");
+
+    return new Response(JSON.stringify(keys));
+  }
+};
+```
+
+## Local Development
+
+Test R2 operations locally:
+
+```bash
+# Use local simulation
+wrangler r2 object put my-bucket/test.txt --file ./test.txt --local
+
+# Get from local storage
+wrangler r2 object get my-bucket/test.txt --local
+
+# Specify persistence directory
+wrangler r2 object put my-bucket/file.txt --file ./file.txt --local --persist-to ./.wrangler/state
+```
+
+Local R2 data is stored in `.wrangler/state/v3/r2/` by default.
+
+## Storage Classes
+
+R2 offers different storage classes for cost optimization:
+
+- **Standard** - Default, frequent access, lowest latency
+- **InfrequentAccess** - Less frequent access, lower storage cost
+
+Set storage class during upload or as bucket default.
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Naming" icon="tag">
+    - Use lowercase, numbers, and hyphens
+    - Bucket names: 3-63 characters
+    - Avoid dots for SSL/TLS compatibility
+    - Use meaningful, descriptive names
+  </Card>
+
+  <Card title="Performance" icon="rocket">
+    - Use appropriate storage classes
+    - Enable caching with Cache-Control headers
+    - Consider custom domains for production
+    - Use bulk operations for multiple files
+  </Card>
+
+  <Card title="Organization" icon="folder">
+    - Use prefixes to organize objects: `images/`, `videos/`
+    - Implement consistent naming conventions
+    - Use metadata for searchability
+    - Plan key structure before scaling
+  </Card>
+
+  <Card title="Security" icon="shield">
+    - Use jurisdictions for compliance
+    - Configure CORS when needed
+    - Implement access controls in Workers
+    - Use presigned URLs for temporary access
+  </Card>
+</CardGroup>
+
+## Limits and Quotas
+
+- **Max object size**: 5 TB (via multipart upload)
+- **Max put size**: 300 MB (single request)
+- **Bucket name**: 3-63 characters
+- **No egress fees**: Unlimited data transfer out
+
+## Related Commands
+
+- [KV Storage](/platform/kv-storage) - Key-value storage
+- [D1 Database](/platform/d1-database) - SQL database
+- [Durable Objects](/platform/durable-objects) - Stateful objects

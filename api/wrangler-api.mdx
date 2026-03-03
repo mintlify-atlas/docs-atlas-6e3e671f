@@ -1,0 +1,637 @@
+---
+title: Wrangler Programmatic API
+description: Use Wrangler as a library in your Node.js applications for local development and deployment.
+---
+
+Wrangler exports a programmatic API that allows you to use it as a library in your Node.js applications. This is useful for building custom development tools, testing frameworks, and deployment pipelines.
+
+## Installation
+
+```bash
+npm install wrangler
+```
+
+## Core Functions
+
+### `startWorker()`
+
+Starts a local development server for a Worker.
+
+```typescript
+import { startWorker } from "wrangler";
+
+const worker = await startWorker({
+  name: "my-worker",
+  entrypoint: "./src/index.ts",
+  compatibilityDate: "2024-01-01",
+});
+
+const response = await worker.fetch("/");
+console.log(await response.text());
+
+await worker.dispose();
+```
+
+<ParamField path="options" type="StartDevWorkerInput" required>
+  Configuration options for the dev server
+
+  <Expandable title="StartDevWorkerInput properties">
+    <ParamField path="name" type="string">
+      The name of the worker
+    </ParamField>
+
+    <ParamField path="entrypoint" type="string">
+      The JavaScript or TypeScript entry-point of the worker. This is the `main` property of a Wrangler configuration file.
+    </ParamField>
+
+    <ParamField path="config" type="string">
+      Path to the Wrangler configuration file
+    </ParamField>
+
+    <ParamField path="compatibilityDate" type="string">
+      The compatibility date for the workerd runtime (e.g., "2024-01-01")
+    </ParamField>
+
+    <ParamField path="compatibilityFlags" type="string[]">
+      Array of compatibility flags for the workerd runtime
+    </ParamField>
+
+    <ParamField path="env" type="string">
+      Environment to use for operations and selecting .env files
+    </ParamField>
+
+    <ParamField path="envFiles" type="string[]">
+      Paths to .env files to load, relative to the project directory
+    </ParamField>
+
+    <ParamField path="bindings" type="Record<string, Binding>">
+      Bindings available to the worker on the `env` object
+
+      <Expandable title="Binding types">
+        - `{ type: "plain_text"; value: string }` - Plain text variable
+        - `{ type: "json"; value: unknown }` - JSON variable
+        - `{ type: "kv_namespace"; id: string }` - KV namespace
+        - `{ type: "durable_object_namespace"; className: string; scriptName?: string }` - Durable Object
+        - `{ type: "r2_bucket"; bucketName: string }` - R2 bucket
+        - `{ type: "d1"; id: string }` - D1 database
+        - `{ type: "service"; service: string; entrypoint?: string }` - Service binding
+        - `{ type: "queue"; queueName: string }` - Queue
+      </Expandable>
+    </ParamField>
+
+    <ParamField path="triggers" type="Trigger[]">
+      Triggers that will cause the worker's exported handlers to be called
+
+      <Expandable title="Trigger types">
+        - HTTP routes (e.g., `{ type: "route"; pattern: "example.com/*" }`)
+        - Custom domains
+      </Expandable>
+    </ParamField>
+
+    <ParamField path="build" type="object">
+      Options for the worker's build step
+
+      <Expandable title="Build options">
+        <ParamField path="build.bundle" type="boolean" default="true">
+          Whether to bundle the worker and its dependencies
+        </ParamField>
+
+        <ParamField path="build.minify" type="boolean">
+          Whether to minify the bundled worker
+        </ParamField>
+
+        <ParamField path="build.define" type="Record<string, string>">
+          Replace global identifiers with constant expressions (e.g., `{ debug: 'true' }`)
+        </ParamField>
+
+        <ParamField path="build.alias" type="Record<string, string>">
+          Alias modules (e.g., `{ "@/utils": "./src/utils" }`)
+        </ParamField>
+
+        <ParamField path="build.moduleRules" type="Rule[]">
+          Specifies types of modules matched by globs
+        </ParamField>
+
+        <ParamField path="build.custom" type="object">
+          Options for custom build steps
+
+          <Expandable title="Custom build options">
+            <ParamField path="custom.command" type="string">
+              Custom shell command to run before bundling
+            </ParamField>
+
+            <ParamField path="custom.watch" type="string | string[]">
+              Files to watch for changes to trigger rebuilds
+            </ParamField>
+          </Expandable>
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField path="dev" type="object">
+      Options for the development preview environment
+
+      <Expandable title="Dev options">
+        <ParamField path="dev.remote" type="boolean | 'minimal'">
+          - `true` or `"minimal"`: Run in remote preview session
+          - `false`: Run locally in workerd simulator
+          - `undefined`: Run code locally, remote bindings remotely
+        </ParamField>
+
+        <ParamField path="dev.persist" type="string">
+          Directory for persisting local storage (KV, DO, R2, D1, etc.)
+        </ParamField>
+
+        <ParamField path="dev.logLevel" type="'debug' | 'info' | 'log' | 'warn' | 'error' | 'none'">
+          Controls which logs are displayed
+        </ParamField>
+
+        <ParamField path="dev.watch" type="boolean">
+          Whether to restart the server on source/config file changes
+        </ParamField>
+
+        <ParamField path="dev.liveReload" type="boolean" default="false">
+          Insert script tag in HTML responses to reload page on file changes
+        </ParamField>
+
+        <ParamField path="dev.server" type="object">
+          Local server configuration
+
+          <Expandable title="Server options">
+            <ParamField path="server.hostname" type="string">
+              Hostname to bind to
+            </ParamField>
+
+            <ParamField path="server.port" type="number">
+              Port to listen on
+            </ParamField>
+
+            <ParamField path="server.secure" type="boolean">
+              Use HTTPS
+            </ParamField>
+          </Expandable>
+        </ParamField>
+
+        <ParamField path="dev.inspector" type="object | false">
+          Inspector server configuration, or `false` to disable
+
+          <Expandable title="Inspector options">
+            <ParamField path="inspector.port" type="number">
+              Port for inspector
+            </ParamField>
+          </Expandable>
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="Worker" type="object">
+  The worker instance
+
+  <Expandable title="Worker properties">
+    <ResponseField name="ready" type="Promise<void>">
+      Promise that resolves when the worker is ready
+    </ResponseField>
+
+    <ResponseField name="url" type="Promise<URL>">
+      Promise that resolves to the worker's URL
+    </ResponseField>
+
+    <ResponseField name="inspectorUrl" type="Promise<URL | undefined>">
+      Promise that resolves to the inspector URL
+    </ResponseField>
+
+    <ResponseField name="fetch" type="(request: Request) => Promise<Response>">
+      Send an HTTP request to the worker
+    </ResponseField>
+
+    <ResponseField name="scheduled" type="(cron?: string) => Promise<void>">
+      Trigger a scheduled event
+    </ResponseField>
+
+    <ResponseField name="queue" type="(queueName: string, messages: Message[]) => Promise<void>">
+      Send messages to a queue consumer
+    </ResponseField>
+
+    <ResponseField name="setConfig" type="(config: StartDevWorkerOptions) => Promise<void>">
+      Replace the entire worker configuration
+    </ResponseField>
+
+    <ResponseField name="patchConfig" type="(config: Partial<StartDevWorkerOptions>) => Promise<void>">
+      Partially update the worker configuration
+    </ResponseField>
+
+    <ResponseField name="dispose" type="() => Promise<void>">
+      Stop the worker and clean up resources
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Usage
+
+```typescript
+import { startWorker } from "wrangler";
+
+const worker = await startWorker({
+  name: "my-api",
+  entrypoint: "./src/index.ts",
+  compatibilityDate: "2024-01-01",
+  bindings: {
+    DB: {
+      type: "d1",
+      id: "my-database",
+    },
+    MY_KV: {
+      type: "kv_namespace",
+      id: "my-kv-namespace",
+    },
+  },
+  dev: {
+    persist: ".wrangler/state",
+    server: {
+      port: 8787,
+    },
+  },
+});
+
+// Wait for worker to be ready
+await worker.ready;
+
+// Make a request
+const response = await worker.fetch("/api/users");
+console.log(await response.json());
+
+// Trigger a scheduled event
+await worker.scheduled();
+
+// Clean up
+await worker.dispose();
+```
+
+---
+
+### `unstable_dev()`
+
+<Warning>
+This API is experimental and may change in future releases.
+</Warning>
+
+Starts a Wrangler dev server for testing purposes.
+
+```typescript
+import { unstable_dev } from "wrangler";
+
+const worker = await unstable_dev("src/index.ts", {
+  config: "wrangler.toml",
+  env: "staging",
+  local: true,
+});
+
+const response = await worker.fetch("/");
+console.log(response.status);
+
+await worker.stop();
+```
+
+<ParamField path="script" type="string" required>
+  Path to the worker script
+</ParamField>
+
+<ParamField path="options" type="Unstable_DevOptions">
+  <Expandable title="Options">
+    <ParamField path="config" type="string">
+      Path to .toml configuration file
+    </ParamField>
+
+    <ParamField path="env" type="string">
+      Environment to use
+    </ParamField>
+
+    <ParamField path="local" type="boolean" default="true">
+      Run locally vs. remotely
+    </ParamField>
+
+    <ParamField path="port" type="number">
+      Port to listen on
+    </ParamField>
+
+    <ParamField path="persist" type="boolean">
+      Enable persistence using default path (.wrangler/state)
+    </ParamField>
+
+    <ParamField path="vars" type="Record<string, string>">
+      Environment variables
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="Unstable_DevWorker" type="object">
+  <Expandable title="Properties">
+    <ResponseField name="port" type="number">
+      Port the server is running on
+    </ResponseField>
+
+    <ResponseField name="address" type="string">
+      Address the server is bound to
+    </ResponseField>
+
+    <ResponseField name="fetch" type="(input?: RequestInfo, init?: RequestInit) => Promise<Response>">
+      Make a request to the worker
+    </ResponseField>
+
+    <ResponseField name="stop" type="() => Promise<void>">
+      Stop the dev server
+    </ResponseField>
+
+    <ResponseField name="waitUntilExit" type="() => Promise<void>">
+      Wait until the server exits
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `getPlatformProxy()`
+
+Get proxy objects for Cloudflare platform bindings in Node.js.
+
+```typescript
+import { getPlatformProxy } from "wrangler";
+
+const { env, dispose } = await getPlatformProxy({
+  configPath: "wrangler.toml",
+});
+
+// Use bindings
+const value = await env.MY_KV.get("key");
+
+await dispose();
+```
+
+<ParamField path="options" type="GetPlatformProxyOptions">
+  <Expandable title="Options">
+    <ParamField path="configPath" type="string">
+      Path to Wrangler config file. If not specified, searches from current directory upward.
+    </ParamField>
+
+    <ParamField path="environment" type="string">
+      Environment name to use
+    </ParamField>
+
+    <ParamField path="persist" type="boolean | { path: string }" default="true">
+      Whether and where to persist binding data. Defaults to `.wrangler/state/v3`.
+    </ParamField>
+
+    <ParamField path="remoteBindings" type="boolean" default="true">
+      Whether remote bindings should be enabled
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="PlatformProxy" type="object">
+  <Expandable title="Properties">
+    <ResponseField name="env" type="Env">
+      Environment object containing Cloudflare bindings (KV, D1, R2, etc.)
+    </ResponseField>
+
+    <ResponseField name="cf" type="IncomingRequestCfProperties">
+      Request.cf object with geolocation and other properties
+    </ResponseField>
+
+    <ResponseField name="ctx" type="ExecutionContext">
+      Mock execution context with `waitUntil()` and `passThroughOnException()`
+    </ResponseField>
+
+    <ResponseField name="caches" type="CacheStorage">
+      Cache API implementation
+    </ResponseField>
+
+    <ResponseField name="dispose" type="() => Promise<void>">
+      Clean up resources
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```typescript
+// Example: Use in a test framework
+import { getPlatformProxy } from "wrangler";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+
+let env, dispose;
+
+beforeAll(async () => {
+  ({ env, dispose } = await getPlatformProxy());
+});
+
+afterAll(async () => {
+  await dispose();
+});
+
+it("should store and retrieve from KV", async () => {
+  await env.MY_KV.put("test-key", "test-value");
+  const value = await env.MY_KV.get("test-key");
+  expect(value).toBe("test-value");
+});
+```
+
+---
+
+## Configuration Utilities
+
+### `unstable_readConfig()`
+
+Read and parse a Wrangler configuration file.
+
+```typescript
+import { unstable_readConfig } from "wrangler";
+
+const config = unstable_readConfig({
+  config: "wrangler.toml",
+  env: "production",
+});
+
+console.log(config.name); // Worker name
+console.log(config.compatibility_date); // Compatibility date
+```
+
+<ParamField path="options" type="object">
+  <ParamField path="config" type="string">
+    Path to config file
+  </ParamField>
+
+  <ParamField path="env" type="string">
+    Environment to use
+  </ParamField>
+</ParamField>
+
+<ResponseField name="config" type="Config">
+  Parsed configuration object
+</ResponseField>
+
+---
+
+### `unstable_getWorkerNameFromProject()`
+
+Get the worker name from a project directory.
+
+```typescript
+import { unstable_getWorkerNameFromProject } from "wrangler";
+
+const name = unstable_getWorkerNameFromProject("/path/to/project");
+console.log(name); // "my-worker"
+```
+
+---
+
+## Binding Utilities
+
+### `convertConfigBindingsToStartWorkerBindings()`
+
+Convert Wrangler config bindings to the format expected by `startWorker()`.
+
+```typescript
+import { 
+  unstable_readConfig, 
+  convertConfigBindingsToStartWorkerBindings 
+} from "wrangler";
+
+const config = unstable_readConfig({ config: "wrangler.toml" });
+const bindings = convertConfigBindingsToStartWorkerBindings(config);
+```
+
+---
+
+## Event Types
+
+The `Worker` object emits events during its lifecycle.
+
+### `ErrorEvent`
+
+Emitted when an error occurs.
+
+```typescript
+type ErrorEvent = {
+  type: "error";
+  error: SerializedError;
+};
+```
+
+### `ConfigUpdateEvent`
+
+Emitted when configuration changes.
+
+```typescript
+type ConfigUpdateEvent = {
+  type: "config-update";
+  config: StartDevWorkerOptions;
+};
+```
+
+### `BundleStartEvent` / `BundleCompleteEvent`
+
+Emitted during bundling.
+
+```typescript
+type BundleStartEvent = {
+  type: "bundle-start";
+};
+
+type BundleCompleteEvent = {
+  type: "bundle-complete";
+  bundle: Bundle;
+};
+```
+
+### `ReadyEvent`
+
+Emitted when the worker is ready.
+
+```typescript
+type ReadyEvent = {
+  type: "ready";
+  url: URL;
+  inspectorUrl?: URL;
+};
+```
+
+---
+
+## Pages API
+
+### `unstable_pages.deploy()`
+
+Deploy a Pages project programmatically.
+
+```typescript
+import { unstable_pages } from "wrangler";
+
+const result = await unstable_pages.deploy({
+  directory: "./dist",
+  projectName: "my-site",
+  accountId: "your-account-id",
+});
+
+console.log(`Deployed to: ${result.url}`);
+```
+
+---
+
+## mTLS Certificate Management
+
+### `uploadMTlsCertificate()`
+
+Upload an mTLS certificate from a buffer.
+
+```typescript
+import { uploadMTlsCertificate } from "wrangler";
+import fs from "fs";
+
+const cert = fs.readFileSync("cert.pem");
+const key = fs.readFileSync("key.pem");
+
+const result = await uploadMTlsCertificate(
+  "my-cert",
+  cert,
+  key,
+  "account-id"
+);
+```
+
+### `listMTlsCertificates()`
+
+List all mTLS certificates.
+
+```typescript
+import { listMTlsCertificates } from "wrangler";
+
+const certs = await listMTlsCertificates("account-id");
+```
+
+### `deleteMTlsCertificate()`
+
+Delete an mTLS certificate.
+
+```typescript
+import { deleteMTlsCertificate } from "wrangler";
+
+await deleteMTlsCertificate("cert-id", "account-id");
+```
+
+---
+
+## Type Definitions
+
+All types are exported from the main package:
+
+```typescript
+import type {
+  Worker,
+  StartDevWorkerInput,
+  StartDevWorkerOptions,
+  Binding,
+  Trigger,
+  GetPlatformProxyOptions,
+  PlatformProxy,
+} from "wrangler";
+```

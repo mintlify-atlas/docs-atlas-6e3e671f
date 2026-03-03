@@ -1,0 +1,368 @@
+---
+title: "wrangler rollback"
+description: "Rollback a deployment for a Worker to a previous stable version"
+---
+
+The `wrangler rollback` command allows you to quickly revert your Worker to a previous version in case of issues. This is useful for emergency rollbacks when a new deployment causes problems.
+
+```bash
+wrangler rollback [VERSION-ID] [OPTIONS]
+```
+
+<Warning>
+Rollback immediately changes your production deployment to route 100% of traffic to the specified version. This affects all users immediately. Your local development environment is not affected.
+</Warning>
+
+## Positional Arguments
+
+<ParamField path="version-id" type="string">
+  The ID of the Worker Version to rollback to (UUID format). If not specified, Wrangler will automatically find the most recent stable version (one that was previously deployed at 100% traffic).
+</ParamField>
+
+## Options
+
+<ParamField path="--name" type="string">
+  The name of your Worker. Can also be specified in your configuration file.
+</ParamField>
+
+<ParamField path="--message" type="string">
+  The reason for this rollback. Helps document why the rollback was performed.
+  
+  Alias: `-m`
+</ParamField>
+
+<ParamField path="--yes" type="boolean" default="false">
+  Automatically accept defaults to prompts without manual confirmation.
+  
+  Alias: `-y`
+</ParamField>
+
+## Examples
+
+### Automatic Rollback
+
+Rollback to the most recent stable version (automatically determined):
+
+```bash
+wrangler rollback
+```
+
+Wrangler will:
+1. Find the most recent deployment where a single version received 100% of traffic
+2. Show you the current deployment
+3. Show you the version it will rollback to
+4. Ask for confirmation
+5. Deploy that version to 100% of traffic
+
+### Rollback to Specific Version
+
+Rollback to a specific version by ID:
+
+```bash
+wrangler rollback 10000000-0000-0000-0000-000000000000
+```
+
+### Rollback with Message
+
+Document why you're rolling back:
+
+```bash
+wrangler rollback --message "Rolling back due to increased error rates"
+```
+
+### Non-Interactive Rollback
+
+Skip confirmation prompts (useful for automation):
+
+```bash
+wrangler rollback 10000000-0000-0000-0000-000000000000 --yes
+```
+
+### Specify Worker Name
+
+Rollback a specific Worker:
+
+```bash
+wrangler rollback --name my-worker --message "Revert breaking change"
+```
+
+## Workflow
+
+<Steps>
+  <Step title="Show current deployment">
+    Wrangler displays your current deployment, showing which versions are receiving traffic and at what percentages.
+  </Step>
+  <Step title="Find rollback version">
+    If you didn't specify a version ID, Wrangler searches your deployment history for the most recent stable version (deployed at 100%).
+  </Step>
+  <Step title="Prompt for message">
+    You're prompted to enter a reason for the rollback (optional but recommended for audit trail).
+  </Step>
+  <Step title="Show rollback target">
+    Wrangler displays details of the version you're rolling back to, including:
+    - Version ID
+    - Creation date
+    - Tag and message annotations
+  </Step>
+  <Step title="Confirm rollback">
+    You're asked to confirm that you want to deploy this version to 100% of traffic. This step is skipped if `--yes` is used.
+  </Step>
+  <Step title="Handle secret changes">
+    If secrets have changed since the target version was deployed, Wrangler will:
+    - List the changed secrets
+    - Ask for additional confirmation
+    - Optionally proceed with force flag
+  </Step>
+  <Step title="Deploy">
+    The rollback is executed, routing 100% of traffic to the target version.
+  </Step>
+  <Step title="Confirm success">
+    Wrangler displays confirmation that the version has been deployed to 100% of traffic and shows the current Version ID.
+  </Step>
+</Steps>
+
+## Automatic Version Selection
+
+When you run `wrangler rollback` without specifying a version ID, Wrangler automatically selects the most recent "stable" version:
+
+1. Fetches your deployment history
+2. Sorts deployments by creation date (newest first)
+3. Skips the current deployment (you can't rollback to what's already deployed)
+4. Finds the first deployment where a single version received 100% of traffic
+5. Uses that version as the rollback target
+
+If no stable version is found, Wrangler throws an error and asks you to specify an explicit Version ID.
+
+## Secret Handling
+
+<Warning>
+When secrets have changed since the target version was deployed, rolling back can have unexpected effects.
+</Warning>
+
+If secrets have been modified, Wrangler will:
+
+1. Attempt the rollback
+2. Detect that secrets have changed (API returns error code `10220`)
+3. Display which secrets have changed
+4. Ask for confirmation to proceed
+5. Retry the rollback with a force flag if you confirm
+
+### Example
+
+```
+The following secrets have changed since version 10000000-0000-0000-0000-000000000000 was deployed.
+Please confirm you wish to continue with the rollback
+  * API_KEY
+  * DATABASE_URL
+```
+
+You can choose to:
+- **Proceed**: Rollback will use the current secret values (not the values from when the version was created)
+- **Abort**: Cancel the rollback to avoid potential issues
+
+<Note>
+Rolling back does **not** rollback secret values. The rolled-back version will use the current secret values, not the values that existed when that version was originally deployed.
+</Note>
+
+## Important Considerations
+
+### What Gets Rolled Back
+
+✅ **Does rollback:**
+- Worker code and logic
+- Compatibility date and flags  
+- Script configuration
+- Variable bindings
+- Traffic routing (to 100%)
+
+❌ **Does not rollback:**
+- Secret values (uses current secrets)
+- Bound resources (KV namespaces, Durable Objects, R2 buckets, D1 databases)
+- Resource data/contents
+- Routes and custom domains
+- Cron schedules
+
+### Bound Resources
+
+<Warning>
+Rollback does not affect bound resources like KV, R2, D1, or Durable Objects. If your new version made schema changes or wrote incompatible data to these resources, rolling back the code won't revert those changes.
+</Warning>
+
+For example:
+- If the new version created new KV keys, they remain after rollback
+- If the new version modified D1 schema, the schema changes persist
+- If the new version wrote data in a new format to Durable Objects, that data remains
+
+You may need to manually clean up or migrate resource data after a rollback.
+
+### Local Development
+
+<Note>
+Rollback only affects production deployments. Your local development environment using `wrangler dev` is not affected and will continue using your local code.
+</Note>
+
+## Related Commands
+
+- [`wrangler deployments status`](/commands/deployments#status) - Check current deployment before rollback
+- [`wrangler deployments list`](/commands/deployments#list) - View deployment history to find rollback targets
+- [`wrangler versions view`](/commands/versions#view) - Inspect a version before rolling back to it
+- [`wrangler versions deploy`](/commands/versions#deploy) - Alternative to rollback for gradual traffic shifts
+
+## Common Scenarios
+
+### Emergency Rollback
+
+When you discover a critical issue in production:
+
+```bash
+# Quick rollback to last stable version
+wrangler rollback --message "Critical bug in authentication flow" --yes
+```
+
+### Rollback After Failed Gradual Deployment
+
+If a gradual rollout reveals issues:
+
+```bash
+# Check current state
+wrangler deployments status
+# Shows: new-version@50 old-version@50
+
+# Rollback to old version at 100%
+wrangler rollback old-version-id --message "High error rate in new version"
+```
+
+### Planned Rollback
+
+For testing or planned maintenance:
+
+```bash
+# Find the version to rollback to
+wrangler versions list
+
+# Rollback with documentation
+wrangler rollback 10000000-0000-0000-0000-000000000000 \
+  --message "Temporary rollback for testing"
+```
+
+### Rollback with Changed Secrets
+
+When secrets have changed:
+
+```bash
+wrangler rollback 10000000-0000-0000-0000-000000000000
+
+# Wrangler will prompt:
+# "The following secrets have changed since version ... was deployed.
+#  Please confirm you wish to continue with the rollback
+#    * API_KEY
+#    * DATABASE_PASSWORD"
+
+# Choose to proceed or abort based on impact
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always include a rollback message">
+    Document why you're rolling back:
+    ```bash
+    wrangler rollback --message "Increased 5xx errors after deployment"
+    ```
+    This creates an audit trail visible in `wrangler deployments list`.
+  </Accordion>
+  
+  <Accordion title="Verify the version before rolling back">
+    Check version details before rollback:
+    ```bash
+    wrangler versions view <version-id>
+    wrangler rollback <version-id>
+    ```
+  </Accordion>
+  
+  <Accordion title="Monitor metrics after rollback">
+    Confirm the rollback resolved the issue:
+    - Check error rates
+    - Monitor latency
+    - Verify traffic patterns
+  </Accordion>
+  
+  <Accordion title="Consider gradual rollback for non-critical issues">
+    Instead of immediate 100% rollback, use gradual deployment:
+    ```bash
+    # Reduce new version traffic
+    wrangler versions deploy new@25 old@75
+    # Monitor, then complete rollback if needed
+    wrangler versions deploy old@100
+    ```
+  </Accordion>
+  
+  <Accordion title="Document the root cause">
+    After rolling back, investigate and document:
+    - What caused the issue
+    - How to prevent it in the future
+    - Whether resource data needs cleanup
+  </Accordion>
+  
+  <Accordion title="Be aware of secret changes">
+    If you've updated secrets since the target version:
+    - Understand which secrets changed
+    - Verify the old code works with current secret values
+    - Update secrets if necessary after rollback
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### "Could not find stable Worker Version to rollback to"
+
+**Cause:** No previous deployment had a single version at 100% traffic.
+
+**Solution:** Specify an explicit version ID:
+```bash
+wrangler versions list
+wrangler rollback <version-id>
+```
+
+### "Cannot rollback with modified secrets"
+
+**Cause:** Secrets have changed since the target version was deployed.
+
+**Solution:** 
+1. Review which secrets changed (shown in error message)
+2. Confirm you understand the implications
+3. Proceed when Wrangler prompts for confirmation
+
+Or update secrets after rollback:
+```bash
+wrangler rollback <version-id>
+wrangler versions secret put API_KEY
+```
+
+### "Worker name missing"
+
+**Cause:** Worker name not in config or specified as argument.
+
+**Solution:** Add to config or specify explicitly:
+```bash
+wrangler rollback --name my-worker
+```
+
+Or add to `wrangler.json`:
+```json
+{
+  "name": "my-worker"
+}
+```
+
+## Configuration
+
+You can set the Worker name in your configuration file:
+
+```json wrangler.json
+{
+  "name": "my-worker"
+}
+```
+
+This allows you to run `wrangler rollback` without specifying `--name` each time.

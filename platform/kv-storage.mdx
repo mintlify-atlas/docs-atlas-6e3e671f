@@ -1,0 +1,428 @@
+---
+title: 'KV Storage'
+description: 'Manage and interact with Workers KV Namespaces for key-value storage'
+---
+
+## Overview
+
+Workers KV is a global, low-latency key-value data store. It supports exceptionally high read volumes with low latency, making it ideal for storing configuration data, cached content, and user preferences.
+
+## Managing Namespaces
+
+### Create a Namespace
+
+Create a new KV namespace with an optional preview namespace for development:
+
+```bash
+wrangler kv namespace create <namespace> [--preview]
+```
+
+**Options:**
+- `<namespace>` - The name of the new namespace
+- `--preview` - Create a preview namespace for testing
+- `--env <environment>` - Target a specific environment
+- `--update-config` - Automatically add the namespace to your wrangler.json
+- `--name <binding-name>` - Custom binding name for the namespace
+
+**Example:**
+
+```bash
+# Create a production namespace
+wrangler kv namespace create my-cache
+
+# Create a preview namespace
+wrangler kv namespace create my-cache --preview
+```
+
+After creation, add the namespace to your configuration:
+
+```json wrangler.json
+{
+  "kv_namespaces": [
+    {
+      "binding": "MY_CACHE",
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ]
+}
+```
+
+### List Namespaces
+
+View all KV namespaces in your account:
+
+```bash
+wrangler kv namespace list
+```
+
+Outputs JSON with namespace details including IDs and titles.
+
+### Rename a Namespace
+
+Rename an existing KV namespace:
+
+```bash
+wrangler kv namespace rename <old-name> --new-name <new-name>
+```
+
+**Options:**
+- `<old-name>` - Current namespace name (positional)
+- `--namespace-id <id>` - Target by ID instead of name
+- `--new-name <name>` - New namespace name (required)
+
+**Example:**
+
+```bash
+wrangler kv namespace rename old-cache --new-name new-cache
+```
+
+### Delete a Namespace
+
+Delete a namespace and all its data:
+
+```bash
+wrangler kv namespace delete <namespace>
+```
+
+**Options:**
+- `<namespace>` - Namespace name to delete
+- `--binding <name>` - Target by binding name
+- `--namespace-id <id>` - Target by namespace ID
+- `--preview` - Delete a preview namespace
+- `-y, --skip-confirmation` - Skip the confirmation prompt
+
+<Warning>
+This action is irreversible and permanently deletes all data in the namespace.
+</Warning>
+
+## Key-Value Operations
+
+<Tabs>
+  <Tab title="Put">
+    ### Write a Key-Value Pair
+
+    Store a value in a KV namespace:
+
+    ```bash
+    wrangler kv key put <key> <value> --binding <binding>
+    ```
+
+    **Options:**
+    - `<key>` - The key to write to
+    - `<value>` - The value to write (mutually exclusive with `--path`)
+    - `--path <file>` - Read value from a file
+    - `--binding <name>` - Binding name from your config
+    - `--namespace-id <id>` - Namespace ID to use
+    - `--preview` - Write to preview namespace
+    - `--ttl <seconds>` - Time-to-live in seconds
+    - `--expiration <timestamp>` - UNIX timestamp for expiration
+    - `--metadata <json>` - Arbitrary JSON metadata
+    - `--local` - Use local storage (for dev)
+    - `--persist-to <dir>` - Directory for local persistence
+
+    **Examples:**
+
+    ```bash
+    # Write a simple value
+    wrangler kv key put "config:theme" "dark" --binding MY_CACHE
+
+    # Write from a file
+    wrangler kv key put "html:home" --path ./index.html --binding MY_CACHE
+
+    # Write with expiration (24 hours)
+    wrangler kv key put "session:abc" "user-data" --binding MY_CACHE --ttl 86400
+
+    # Write with metadata
+    wrangler kv key put "user:123" "data" --binding MY_CACHE --metadata '{"version":"1.0"}'
+    ```
+  </Tab>
+  
+  <Tab title="Get">
+    ### Read a Key-Value Pair
+
+    Retrieve a value from a KV namespace:
+
+    ```bash
+    wrangler kv key get <key> --binding <binding>
+    ```
+
+    **Options:**
+    - `<key>` - The key to read
+    - `--binding <name>` - Binding name from your config
+    - `--namespace-id <id>` - Namespace ID to use
+    - `--preview` - Read from preview namespace (defaults to false)
+    - `--text` - Decode value as UTF-8 text
+    - `--local` - Use local storage
+    - `--persist-to <dir>` - Directory for local persistence
+
+    **Examples:**
+
+    ```bash
+    # Get a value as text
+    wrangler kv key get "config:theme" --binding MY_CACHE --text
+
+    # Get binary data (outputs to stdout)
+    wrangler kv key get "image:logo" --binding MY_CACHE > logo.png
+
+    # Get from local namespace
+    wrangler kv key get "test:key" --binding MY_CACHE --local
+    ```
+  </Tab>
+  
+  <Tab title="List">
+    ### List All Keys
+
+    List all keys in a namespace:
+
+    ```bash
+    wrangler kv key list --binding <binding>
+    ```
+
+    **Options:**
+    - `--binding <name>` - Binding name from your config
+    - `--namespace-id <id>` - Namespace ID to use
+    - `--prefix <prefix>` - Filter keys by prefix
+    - `--preview` - List keys in preview namespace
+    - `--local` - Use local storage
+    - `--persist-to <dir>` - Directory for local persistence
+
+    **Examples:**
+
+    ```bash
+    # List all keys
+    wrangler kv key list --binding MY_CACHE
+
+    # List keys with a prefix
+    wrangler kv key list --binding MY_CACHE --prefix "user:"
+    ```
+
+    Output format:
+    ```json
+    [
+      {
+        "name": "config:theme",
+        "expiration": null,
+        "metadata": null
+      },
+      {
+        "name": "user:123",
+        "expiration": 1234567890,
+        "metadata": {"version": "1.0"}
+      }
+    ]
+    ```
+  </Tab>
+  
+  <Tab title="Delete">
+    ### Delete a Key-Value Pair
+
+    Remove a key from a namespace:
+
+    ```bash
+    wrangler kv key delete <key> --binding <binding>
+    ```
+
+    **Options:**
+    - `<key>` - The key to delete
+    - `--binding <name>` - Binding name from your config
+    - `--namespace-id <id>` - Namespace ID to use
+    - `--preview` - Delete from preview namespace
+    - `--local` - Use local storage
+    - `--persist-to <dir>` - Directory for local persistence
+
+    **Example:**
+
+    ```bash
+    wrangler kv key delete "session:expired" --binding MY_CACHE
+    ```
+  </Tab>
+</Tabs>
+
+## Bulk Operations
+
+<CardGroup cols={2}>
+  <Card title="Bulk Put" icon="upload">
+    Upload multiple key-value pairs from a JSON file:
+
+    ```bash
+    wrangler kv bulk put <filename> --binding <binding>
+    ```
+
+    **JSON Format:**
+    ```json
+    [
+      {
+        "key": "config:theme",
+        "value": "dark",
+        "expiration_ttl": 86400,
+        "metadata": {"version": "2.0"}
+      },
+      {
+        "key": "config:lang",
+        "value": "en",
+        "base64": false
+      }
+    ]
+    ```
+
+    **Fields:**
+    - `key` - Key name (required)
+    - `value` - Value to store (required)
+    - `expiration` - UNIX timestamp for expiration
+    - `expiration_ttl` - Seconds until expiration
+    - `metadata` - JSON object for metadata
+    - `base64` - Whether value is base64 encoded
+  </Card>
+
+  <Card title="Bulk Get" icon="download">
+    Retrieve multiple values by keys (Open Beta):
+
+    ```bash
+    wrangler kv bulk get <filename> --binding <binding>
+    ```
+
+    **Input Format:**
+    ```json
+    ["key1", "key2", "key3"]
+    ```
+
+    Or with objects:
+    ```json
+    [{"name": "key1"}, {"name": "key2"}]
+    ```
+  </Card>
+
+  <Card title="Bulk Delete" icon="trash">
+    Delete multiple keys from a namespace:
+
+    ```bash
+    wrangler kv bulk delete <filename> --binding <binding>
+    ```
+
+    **Options:**
+    - `-f, --force` - Skip confirmation prompt
+
+    **Input Format:**
+    ```json
+    ["key1", "key2", "key3"]
+    ```
+  </Card>
+</CardGroup>
+
+## Local Development
+
+### Using Local Storage
+
+Test KV operations locally without affecting production data:
+
+```bash
+# Write to local storage
+wrangler kv key put "test" "value" --binding MY_CACHE --local
+
+# Read from local storage
+wrangler kv key get "test" --binding MY_CACHE --local
+
+# Specify persistence directory
+wrangler kv key put "test" "value" --binding MY_CACHE --local --persist-to ./.wrangler
+```
+
+Local mode stores data in `.wrangler/state/v3/kv/` by default.
+
+## Worker Integration
+
+Access KV from your Worker code:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    // Get a value
+    const theme = await env.MY_CACHE.get("config:theme");
+    
+    // Get with metadata
+    const { value, metadata } = await env.MY_CACHE.getWithMetadata("user:123");
+    
+    // Put a value
+    await env.MY_CACHE.put("session:abc", "data", {
+      expirationTtl: 3600,
+      metadata: { userId: "123" }
+    });
+    
+    // Delete a value
+    await env.MY_CACHE.delete("session:old");
+    
+    // List keys
+    const { keys } = await env.MY_CACHE.list({ prefix: "user:" });
+    
+    return new Response("OK");
+  }
+};
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Key Naming" icon="key">
+    - Use prefixes for organization: `user:123`, `config:theme`
+    - Keep keys under 512 bytes
+    - Use consistent naming conventions
+    - Avoid special characters when possible
+  </Card>
+
+  <Card title="Value Limits" icon="database">
+    - Maximum value size: 25 MiB
+    - Maximum metadata size: 1 KiB
+    - Use expiration for temporary data
+    - Consider compression for large values
+  </Card>
+
+  <Card title="Performance" icon="gauge">
+    - KV is optimized for high read volumes
+    - Writes propagate globally (eventual consistency)
+    - Use list() pagination for large datasets
+    - Cache frequently accessed data
+  </Card>
+
+  <Card title="Development" icon="code">
+    - Use preview namespaces for testing
+    - Test with `--local` flag during development
+    - Use `--persist-to` for consistent local state
+    - Version your data with metadata
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+Common errors and solutions:
+
+<AccordionGroup>
+  <Accordion title="Namespace not found">
+    Ensure the namespace exists and you're using the correct binding name or namespace ID:
+    ```bash
+    wrangler kv namespace list
+    ```
+  </Accordion>
+
+  <Accordion title="Key not found">
+    The specified key doesn't exist in the namespace. Check the key name and use `kv key list` to verify.
+  </Accordion>
+
+  <Accordion title="Invalid metadata JSON">
+    Metadata must be valid JSON. Use proper escaping:
+    ```bash
+    --metadata '{"version":"1.0","author":"user"}'
+    ```
+  </Accordion>
+
+  <Accordion title="Value too large">
+    Values must be under 25 MiB. Consider:
+    - Compressing the data
+    - Splitting into multiple keys
+    - Using R2 for larger objects
+  </Accordion>
+</AccordionGroup>
+
+## Related Commands
+
+- [R2 Storage](/platform/r2-storage) - Object storage for large files
+- [D1 Database](/platform/d1-database) - Serverless SQL database
+- [Durable Objects](/platform/durable-objects) - Stateful coordination

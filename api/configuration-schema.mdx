@@ -1,0 +1,672 @@
+---
+title: Configuration File Schema
+description: Complete reference for Wrangler configuration file options.
+---
+
+Wrangler uses a configuration file (typically `wrangler.json` or `wrangler.toml`) to define your Worker's settings, bindings, and deployment options.
+
+## Configuration File Formats
+
+Wrangler supports two configuration formats:
+
+- **JSONC** (`.json` or `.jsonc`): JSON with comments
+- **TOML** (`.toml`): Tom's Obvious Minimal Language
+
+<Tip>
+For new projects, we recommend using JSONC format for better IDE support and validation.
+</Tip>
+
+## Core Configuration
+
+### `name`
+
+<ParamField path="name" type="string" required>
+  The name of your Worker. This is used in the Workers dashboard and CLI output.
+
+  ```json
+  {
+    "name": "my-worker"
+  }
+  ```
+</ParamField>
+
+### `main`
+
+<ParamField path="main" type="string">
+  Path to the entry point of your Worker.
+
+  ```json
+  {
+    "main": "src/index.ts"
+  }
+  ```
+</ParamField>
+
+### `compatibility_date`
+
+<ParamField path="compatibility_date" type="string" required>
+  A date in the form `yyyy-mm-dd` that specifies which version of the Workers runtime to use.
+
+  ```json
+  {
+    "compatibility_date": "2024-01-01"
+  }
+  ```
+</ParamField>
+
+### `compatibility_flags`
+
+<ParamField path="compatibility_flags" type="string[]">
+  Flags that enable or disable specific runtime features.
+
+  ```json
+  {
+    "compatibility_flags": [
+      "nodejs_compat",
+      "streams_enable_constructors"
+    ]
+  }
+  ```
+</ParamField>
+
+### `account_id`
+
+<ParamField path="account_id" type="string">
+  Your Cloudflare account ID.
+
+  ```json
+  {
+    "account_id": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+  }
+  ```
+</ParamField>
+
+---
+
+## Build Configuration
+
+### `rules`
+
+<ParamField path="rules" type="Rule[]">
+  Module import rules for non-JavaScript files.
+
+  ```json
+  {
+    "rules": [
+      {
+        "type": "Text",
+        "globs": ["**/*.txt"],
+        "fallthrough": false
+      },
+      {
+        "type": "Data",
+        "globs": ["**/*.bin"]
+      }
+    ]
+  }
+  ```
+
+  <Expandable title="Rule types">
+    - `ESModule` - JavaScript/TypeScript modules
+    - `CommonJS` - CommonJS modules
+    - `Text` - Text files as strings
+    - `Data` - Binary data as ArrayBuffer
+    - `CompiledWasm` - WebAssembly modules
+  </Expandable>
+</ParamField>
+
+### `minify`
+
+<ParamField path="minify" type="boolean">
+  Whether to minify the Worker script.
+
+  ```json
+  {
+    "minify": true
+  }
+  ```
+</ParamField>
+
+### `define`
+
+<ParamField path="define" type="Record<string, string>">
+  Replace global identifiers with constant expressions.
+
+  ```json
+  {
+    "define": {
+      "DEBUG": "false",
+      "API_VERSION": "\"v1\""
+    }
+  }
+  ```
+</ParamField>
+
+### `tsconfig`
+
+<ParamField path="tsconfig" type="string">
+  Path to a custom TypeScript config file.
+
+  ```json
+  {
+    "tsconfig": "tsconfig.worker.json"
+  }
+  ```
+</ParamField>
+
+---
+
+## Bindings
+
+### `vars`
+
+<ParamField path="vars" type="Record<string, string>">
+  Environment variables available in your Worker.
+
+  ```json
+  {
+    "vars": {
+      "API_KEY": "my-api-key",
+      "ENVIRONMENT": "production"
+    }
+  }
+  ```
+</ParamField>
+
+### `kv_namespaces`
+
+<ParamField path="kv_namespaces" type="KVNamespace[]">
+  KV namespace bindings.
+
+  ```json
+  {
+    "kv_namespaces": [
+      {
+        "binding": "MY_KV",
+        "id": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+      }
+    ]
+  }
+  ```
+
+  <Expandable title="KVNamespace properties">
+    <ParamField path="binding" type="string" required>
+      Variable name to access the namespace
+    </ParamField>
+
+    <ParamField path="id" type="string" required>
+      KV namespace ID
+    </ParamField>
+
+    <ParamField path="preview_id" type="string">
+      KV namespace ID for local development
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `durable_objects`
+
+<ParamField path="durable_objects" type="object">
+  Durable Object bindings.
+
+  ```json
+  {
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "MY_DO",
+          "class_name": "MyDurableObject",
+          "script_name": "do-worker"
+        }
+      ]
+    }
+  }
+  ```
+
+  <Expandable title="Binding properties">
+    <ParamField path="name" type="string" required>
+      Variable name to access the namespace
+    </ParamField>
+
+    <ParamField path="class_name" type="string" required>
+      Exported Durable Object class name
+    </ParamField>
+
+    <ParamField path="script_name" type="string">
+      Name of the Worker that defines this Durable Object (if different from current)
+    </ParamField>
+
+    <ParamField path="environment" type="string">
+      Environment of the script (production/staging)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `r2_buckets`
+
+<ParamField path="r2_buckets" type="R2Bucket[]">
+  R2 bucket bindings.
+
+  ```json
+  {
+    "r2_buckets": [
+      {
+        "binding": "MY_BUCKET",
+        "bucket_name": "my-bucket"
+      }
+    ]
+  }
+  ```
+
+  <Expandable title="R2Bucket properties">
+    <ParamField path="binding" type="string" required>
+      Variable name to access the bucket
+    </ParamField>
+
+    <ParamField path="bucket_name" type="string" required>
+      R2 bucket name
+    </ParamField>
+
+    <ParamField path="preview_bucket_name" type="string">
+      Bucket name for local development
+    </ParamField>
+
+    <ParamField path="jurisdiction" type="string">
+      Jurisdiction for the bucket (e.g., "eu")
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `d1_databases`
+
+<ParamField path="d1_databases" type="D1Database[]">
+  D1 database bindings.
+
+  ```json
+  {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "my-database",
+        "database_id": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6"
+      }
+    ]
+  }
+  ```
+
+  <Expandable title="D1Database properties">
+    <ParamField path="binding" type="string" required>
+      Variable name to access the database
+    </ParamField>
+
+    <ParamField path="database_name" type="string" required>
+      Database name
+    </ParamField>
+
+    <ParamField path="database_id" type="string" required>
+      Database UUID
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `queues`
+
+<ParamField path="queues" type="object">
+  Queue bindings for producers and consumers.
+
+  ```json
+  {
+    "queues": {
+      "producers": [
+        {
+          "binding": "MY_QUEUE",
+          "queue": "my-queue"
+        }
+      ],
+      "consumers": [
+        {
+          "queue": "my-queue",
+          "max_batch_size": 10,
+          "max_batch_timeout": 5
+        }
+      ]
+    }
+  }
+  ```
+
+  <Expandable title="Producer properties">
+    <ParamField path="binding" type="string" required>
+      Variable name for the queue
+    </ParamField>
+
+    <ParamField path="queue" type="string" required>
+      Queue name
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Consumer properties">
+    <ParamField path="queue" type="string" required>
+      Queue name to consume from
+    </ParamField>
+
+    <ParamField path="max_batch_size" type="number">
+      Maximum messages per batch (default: 10, max: 100)
+    </ParamField>
+
+    <ParamField path="max_batch_timeout" type="number">
+      Maximum seconds to wait before dispatching batch (default: 5)
+    </ParamField>
+
+    <ParamField path="max_retries" type="number">
+      Number of retries on failure (default: 3)
+    </ParamField>
+
+    <ParamField path="dead_letter_queue" type="string">
+      Queue to send failed messages to
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `services`
+
+<ParamField path="services" type="Service[]">
+  Service bindings to other Workers.
+
+  ```json
+  {
+    "services": [
+      {
+        "binding": "AUTH_SERVICE",
+        "service": "auth-worker",
+        "entrypoint": "AuthAPI"
+      }
+    ]
+  }
+  ```
+
+  <Expandable title="Service properties">
+    <ParamField path="binding" type="string" required>
+      Variable name for the service
+    </ParamField>
+
+    <ParamField path="service" type="string" required>
+      Name of the Worker to bind to
+    </ParamField>
+
+    <ParamField path="entrypoint" type="string">
+      Named entrypoint to use
+    </ParamField>
+
+    <ParamField path="environment" type="string">
+      Environment of the service
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `analytics_engine_datasets`
+
+<ParamField path="analytics_engine_datasets" type="AnalyticsEngine[]">
+  Analytics Engine dataset bindings.
+
+  ```json
+  {
+    "analytics_engine_datasets": [
+      {
+        "binding": "ANALYTICS"
+      }
+    ]
+  }
+  ```
+</ParamField>
+
+---
+
+## Routing
+
+### `routes`
+
+<ParamField path="routes" type="Route[]">
+  Routes that trigger your Worker.
+
+  ```json
+  {
+    "routes": [
+      "example.com/*",
+      { "pattern": "api.example.com/*", "zone_name": "example.com" }
+    ]
+  }
+  ```
+</ParamField>
+
+### `route`
+
+<ParamField path="route" type="string">
+  Single route pattern (alternative to `routes`).
+
+  ```json
+  {
+    "route": "example.com/*"
+  }
+  ```
+</ParamField>
+
+---
+
+## Static Assets
+
+### `assets`
+
+<ParamField path="assets" type="object">
+  Configuration for Workers Assets.
+
+  ```json
+  {
+    "assets": {
+      "directory": "./public",
+      "binding": "ASSETS",
+      "run_worker_first": ["/api/*"]
+    }
+  }
+  ```
+
+  <Expandable title="Assets properties">
+    <ParamField path="directory" type="string" required>
+      Directory containing static files
+    </ParamField>
+
+    <ParamField path="binding" type="string">
+      Variable name for the assets binding
+    </ParamField>
+
+    <ParamField path="run_worker_first" type="string[]">
+      URL patterns to run Worker logic before serving assets
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### `site`
+
+<ParamField path="site" type="object">
+  Configuration for Workers Sites (legacy).
+
+  ```json
+  {
+    "site": {
+      "bucket": "./public"
+    }
+  }
+  ```
+</ParamField>
+
+---
+
+## Development
+
+### `dev`
+
+<ParamField path="dev" type="object">
+  Local development configuration.
+
+  ```json
+  {
+    "dev": {
+      "port": 8787,
+      "local_protocol": "http"
+    }
+  }
+  ```
+
+  <Expandable title="Dev properties">
+    <ParamField path="port" type="number">
+      Port to run dev server on
+    </ParamField>
+
+    <ParamField path="ip" type="string">
+      IP address to bind to
+    </ParamField>
+
+    <ParamField path="local_protocol" type="'http' | 'https'">
+      Protocol for local server
+    </ParamField>
+
+    <ParamField path="upstream_protocol" type="'http' | 'https'">
+      Protocol for upstream requests
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+## Migrations
+
+### `migrations`
+
+<ParamField path="migrations" type="Migration[]">
+  Durable Object migrations.
+
+  ```json
+  {
+    "migrations": [
+      {
+        "tag": "v1",
+        "new_classes": ["MyDurableObject"]
+      },
+      {
+        "tag": "v2",
+        "renamed_classes": [{
+          "from": "MyDurableObject",
+          "to": "MyDO"
+        }]
+      }
+    ]
+  }
+  ```
+
+  <Expandable title="Migration properties">
+    <ParamField path="tag" type="string" required>
+      Unique identifier for this migration
+    </ParamField>
+
+    <ParamField path="new_classes" type="string[]">
+      Durable Object classes being added
+    </ParamField>
+
+    <ParamField path="renamed_classes" type="object[]">
+      Classes being renamed
+    </ParamField>
+
+    <ParamField path="deleted_classes" type="string[]">
+      Classes being removed
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+## Observability
+
+### `logpush`
+
+<ParamField path="logpush" type="boolean">
+  Enable Logpush for this Worker.
+
+  ```json
+  {
+    "logpush": true
+  }
+  ```
+</ParamField>
+
+### `tail_consumers`
+
+<ParamField path="tail_consumers" type="TailConsumer[]">
+  Workers to send tail logs to.
+
+  ```json
+  {
+    "tail_consumers": [
+      {
+        "service": "log-processor"
+      }
+    ]
+  }
+  ```
+</ParamField>
+
+---
+
+## Limits
+
+### `limits`
+
+<ParamField path="limits" type="object">
+  Resource limits for your Worker.
+
+  ```json
+  {
+    "limits": {
+      "cpu_ms": 50
+    }
+  }
+  ```
+
+  <Expandable title="Limit properties">
+    <ParamField path="cpu_ms" type="number">
+      Maximum CPU time in milliseconds
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+## Environment Overrides
+
+You can define environment-specific overrides:
+
+```json
+{
+  "name": "my-worker",
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+  "env": {
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "MY_KV",
+          "id": "staging-kv-id"
+        }
+      ]
+    }
+  }
+}
+```
+
+Deploy to staging:
+
+```bash
+wrangler deploy --env staging
+```

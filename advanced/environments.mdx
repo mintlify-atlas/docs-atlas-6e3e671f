@@ -1,0 +1,463 @@
+---
+title: "Environment Configuration"
+description: "Manage multiple deployment environments with Cloudflare Workers"
+---
+
+## Overview
+
+Environments allow you to deploy the same Worker code to different configurations for development, staging, and production. Each environment can have different bindings, settings, and routes.
+
+<Info>
+Environments enable you to test changes in isolation before promoting to production, using the same codebase with environment-specific configuration.
+</Info>
+
+## Environment Types
+
+Cloudflare Workers supports two environment models:
+
+### Named Environments (Recommended)
+
+Named environments are explicitly defined and grouped under a service name. This is the modern, recommended approach.
+
+```json wrangler.json
+{
+  "name": "my-service",
+  "main": "src/index.ts",
+  "defined_environments": ["production", "staging", "development"],
+  
+  "kv_namespaces": [
+    { "binding": "DATA", "id": "dev-kv-id" }
+  ],
+  
+  "env": {
+    "staging": {
+      "kv_namespaces": [
+        { "binding": "DATA", "id": "staging-kv-id" }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging"
+      }
+    },
+    "production": {
+      "kv_namespaces": [
+        { "binding": "DATA", "id": "prod-kv-id" }
+      ],
+      "vars": {
+        "ENVIRONMENT": "production"
+      },
+      "routes": [
+        { "pattern": "example.com/*", "zone_name": "example.com" }
+      ]
+    }
+  }
+}
+```
+
+**Deployment:**
+```bash
+# Deploy to development (default/top-level config)
+wrangler deploy
+
+# Deploy to staging
+wrangler deploy --env staging
+
+# Deploy to production
+wrangler deploy --env production
+```
+
+### Service Environments (Legacy)
+
+The older model where each environment is treated as a separate service. This approach is deprecated but still supported.
+
+<Warning>
+Service environments are legacy. Use named environments with `defined_environments` for new projects.
+</Warning>
+
+## Environment Configuration
+
+### Top-Level Configuration
+
+Settings defined at the top level apply to the default environment:
+
+```json wrangler.json
+{
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+  
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "dev-cache" }
+  ],
+  
+  "vars": {
+    "LOG_LEVEL": "debug"
+  }
+}
+```
+
+Deploy with: `wrangler deploy`
+
+### Environment-Specific Overrides
+
+Override any top-level setting per environment:
+
+```json wrangler.json
+{
+  "name": "api-service",
+  "main": "src/index.ts",
+  "defined_environments": ["production"],
+  
+  "compatibility_date": "2024-01-01",
+  "vars": {
+    "LOG_LEVEL": "debug",
+    "API_URL": "http://localhost:8787"
+  },
+  
+  "env": {
+    "production": {
+      "vars": {
+        "LOG_LEVEL": "error",
+        "API_URL": "https://api.example.com"
+      },
+      "limits": {
+        "cpu_ms": 50
+      }
+    }
+  }
+}
+```
+
+## Configurable Properties
+
+These settings can be overridden per environment:
+
+<ParamField path="routes" type="array">
+  Routes that trigger this Worker (usually set for production only)
+</ParamField>
+
+<ParamField path="vars" type="object">
+  Environment variables (non-sensitive configuration)
+</ParamField>
+
+<ParamField path="kv_namespaces" type="array">
+  KV namespace bindings (use separate namespaces per environment)
+</ParamField>
+
+<ParamField path="d1_databases" type="array">
+  D1 database bindings
+</ParamField>
+
+<ParamField path="r2_buckets" type="array">
+  R2 bucket bindings
+</ParamField>
+
+<ParamField path="durable_objects" type="object">
+  Durable Object bindings
+</ParamField>
+
+<ParamField path="services" type="array">
+  Service bindings to other Workers
+</ParamField>
+
+<ParamField path="analytics_engine_datasets" type="array">
+  Analytics Engine bindings
+</ParamField>
+
+<ParamField path="compatibility_date" type="string">
+  Compatibility date for runtime behavior
+</ParamField>
+
+<ParamField path="compatibility_flags" type="array">
+  Compatibility flags for specific features
+</ParamField>
+
+<ParamField path="limits" type="object">
+  Resource limits (CPU time, etc.)
+</ParamField>
+
+<ParamField path="placement" type="object">
+  Smart Placement configuration
+</ParamField>
+
+## Service Tags
+
+When using named environments, Cloudflare automatically applies service tags to group environments together in the dashboard.
+
+### How Tags Work
+
+```json wrangler.json
+{
+  "name": "my-service",
+  "defined_environments": ["production", "staging"]
+}
+```
+
+Deployments receive these tags:
+- Service tag: `service:my-service`
+- Environment tag: `env:production` or `env:staging`
+
+These tags enable:
+- Grouped view in Cloudflare dashboard
+- Filtering and searching by service
+- Tracking deployments across environments
+
+<Note>
+If no top-level `name` is defined, environments won't be grouped. Always include a service name when using named environments.
+</Note>
+
+## Environment Patterns
+
+### Development, Staging, Production
+
+```json wrangler.json
+{
+  "name": "app",
+  "main": "src/index.ts",
+  "defined_environments": ["staging", "production"],
+  
+  "kv_namespaces": [
+    { "binding": "DB", "id": "dev-db" }
+  ],
+  "vars": {
+    "ENVIRONMENT": "development",
+    "DEBUG": "true"
+  },
+  
+  "env": {
+    "staging": {
+      "kv_namespaces": [
+        { "binding": "DB", "id": "staging-db" }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "DEBUG": "true"
+      },
+      "routes": [
+        { "pattern": "staging.example.com/*", "zone_name": "example.com" }
+      ]
+    },
+    "production": {
+      "kv_namespaces": [
+        { "binding": "DB", "id": "prod-db" }
+      ],
+      "vars": {
+        "ENVIRONMENT": "production",
+        "DEBUG": "false"
+      },
+      "routes": [
+        { "pattern": "example.com/*", "zone_name": "example.com" }
+      ],
+      "limits": {
+        "cpu_ms": 50
+      }
+    }
+  }
+}
+```
+
+### Preview Environments
+
+Use separate preview bindings for local development:
+
+```json wrangler.json
+{
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "production-cache-id",
+      "preview_id": "preview-cache-id"
+    }
+  ]
+}
+```
+
+When running `wrangler dev`, the preview ID is used instead of production.
+
+### Feature Branches
+
+Deploy feature branches to separate environments:
+
+```bash
+# Deploy feature branch
+wrangler deploy --env feature-auth
+
+# Deploy another feature
+wrangler deploy --env feature-payments
+```
+
+Add environments dynamically in CI/CD:
+```json wrangler.json
+{
+  "name": "app",
+  "env": {
+    "feature-auth": {
+      "vars": { "FEATURE": "auth" }
+    },
+    "feature-payments": {
+      "vars": { "FEATURE": "payments" }
+    }
+  }
+}
+```
+
+## Local Development
+
+### Development Server
+
+```bash
+# Start dev server with default environment
+wrangler dev
+
+# Start dev server with specific environment
+wrangler dev --env staging
+
+# Use remote bindings (KV, D1, R2) instead of local mocks
+wrangler dev --remote
+```
+
+### Environment Selection
+
+By default, `wrangler dev` uses:
+1. Top-level configuration
+2. `preview_id` for bindings when available
+3. Local mocks for KV, D1, etc.
+
+With `--env`, it uses:
+1. Environment-specific overrides
+2. Merged with top-level config
+3. Preview or remote bindings
+
+## CI/CD Integration
+
+### GitHub Actions Example
+
+```yaml .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to staging
+        if: github.ref == 'refs/heads/staging'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          command: deploy --env staging
+      
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          command: deploy --env production
+```
+
+### Environment Variables in CI
+
+Store secrets in CI/CD platform (GitHub Secrets, GitLab CI/CD variables):
+
+```bash
+# GitHub Actions
+echo "$CF_API_TOKEN" | wrangler secret put API_KEY --env production
+
+# Or use wrangler.toml with secrets placeholder
+wrangler deploy --env production
+```
+
+## Migration Guide
+
+### From Service to Named Environments
+
+**Before (Service Environments):**
+```json
+{
+  "name": "worker",
+  "env": {
+    "production": {
+      "name": "worker-production",
+      "routes": ["example.com/*"]
+    }
+  }
+}
+```
+
+**After (Named Environments):**
+```json
+{
+  "name": "worker",
+  "defined_environments": ["production"],
+  "env": {
+    "production": {
+      "routes": ["example.com/*"]
+    }
+  }
+}
+```
+
+Key changes:
+- Add `defined_environments` array
+- Remove `name` from environment config (inherited from top level)
+- All environments now grouped under service name
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Named Environments" icon="layer-group">
+    Always use `defined_environments` for new projects to benefit from dashboard grouping and better organization.
+  </Card>
+  
+  <Card title="Isolate Resources" icon="database">
+    Use completely separate KV/D1/R2 resources for each environment to prevent data leakage.
+  </Card>
+  
+  <Card title="Match Compatibility" icon="calendar">
+    Keep `compatibility_date` the same across environments unless testing runtime upgrades.
+  </Card>
+  
+  <Card title="Test Before Production" icon="vial">
+    Always deploy to staging first, verify functionality, then promote to production.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Bindings Not Found
+
+**Problem:** Worker throws "binding not found" errors
+
+**Solution:** Check that environment-specific bindings are correctly defined:
+```bash
+wrangler deploy --env production --dry-run
+```
+
+Verify all bindings are listed in the output.
+
+### Wrong Environment Deployed
+
+**Problem:** Changes appear in wrong environment
+
+**Solution:** Always specify `--env` flag:
+```bash
+wrangler deploy --env staging  # Explicit environment
+```
+
+### Service Tags Missing
+
+**Problem:** Environments not grouped in dashboard
+
+**Solution:** Ensure top-level `name` and `defined_environments` are set:
+```json
+{
+  "name": "my-service",
+  "defined_environments": ["production", "staging"]
+}
+```

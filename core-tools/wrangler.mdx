@@ -1,0 +1,577 @@
+---
+title: Wrangler CLI
+description: Command-line interface for building, developing, and deploying Cloudflare Workers
+---
+
+Wrangler is the official command-line tool for developing, testing, and deploying Cloudflare Workers. It provides a complete development workflow from local development to production deployment.
+
+<Info>
+**Current Version:** 4.69.0
+
+Wrangler requires Node.js 20.0.0 or higher and is supported on macOS 13.5+, Windows 11, and Linux distros with glib 2.35+.
+</Info>
+
+## Installation
+
+Install Wrangler globally or as a project dependency:
+
+```bash
+# Install globally
+npm install -g wrangler
+
+# Or as a dev dependency
+npm install --save-dev wrangler
+```
+
+Verify installation:
+
+```bash
+wrangler --version
+```
+
+## Quick Start
+
+Initialize a new Worker project:
+
+```bash
+wrangler init my-worker -y
+```
+
+This creates a new Worker with:
+- A `wrangler.jsonc` configuration file
+- A basic Worker script in `src/index.ts`
+- TypeScript configuration
+- Package.json with necessary dependencies
+
+## Core Features
+
+<CardGroup cols={2}>
+  <Card title="Local Development" icon="laptop-code">
+    Run your Worker locally with live reloading and Chrome DevTools debugging
+  </Card>
+  <Card title="One-Click Deploy" icon="rocket">
+    Deploy to Cloudflare's global network with a single command
+  </Card>
+  <Card title="Resource Management" icon="database">
+    Create and manage KV namespaces, R2 buckets, D1 databases, and more
+  </Card>
+  <Card title="Secrets Management" icon="key">
+    Securely manage environment variables and secrets
+  </Card>
+</CardGroup>
+
+## Essential Commands
+
+### Development
+
+Start a local development server with live reloading:
+
+```bash
+wrangler dev
+```
+
+The dev server provides:
+- Hot module reloading for instant updates
+- Chrome DevTools integration for debugging
+- Local bindings simulation (KV, R2, D1, Durable Objects)
+- Request/response inspection
+
+<Tip>
+Access DevTools by visiting `chrome://inspect` in a Chromium-based browser and clicking "inspect" next to your Worker.
+</Tip>
+
+### Deployment
+
+Deploy your Worker to production:
+
+```bash
+wrangler deploy
+```
+
+Deploy to a specific environment:
+
+```bash
+wrangler deploy --env production
+```
+
+<Note>
+By default, Workers are deployed to `<worker-name>.<subdomain>.workers.dev`. You can add custom domains in the Cloudflare dashboard.
+</Note>
+
+### Tail Logs
+
+Stream live logs from your deployed Worker:
+
+```bash
+wrangler tail
+```
+
+Filter logs by status:
+
+```bash
+wrangler tail --status error
+```
+
+## Configuration
+
+Wrangler uses a `wrangler.jsonc`, `wrangler.json`, or `wrangler.toml` file for configuration. The JSON format is recommended for better IDE support.
+
+### Basic Configuration
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-worker",
+  "main": "./src/index.ts",
+  "compatibility_date": "2024-03-01"
+}
+```
+
+### Configuration with Bindings
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-worker",
+  "main": "./src/index.ts",
+  "compatibility_date": "2024-03-01",
+  "kv_namespaces": [
+    { "binding": "MY_KV", "id": "abc123..." }
+  ],
+  "r2_buckets": [
+    { "binding": "MY_BUCKET", "bucket_name": "my-bucket" }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "my-db", "database_id": "xyz789..." }
+  ],
+  "vars": {
+    "API_URL": "https://api.example.com"
+  }
+}
+```
+
+### Multi-Environment Configuration
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-worker",
+  "main": "./src/index.ts",
+  "compatibility_date": "2024-03-01",
+  "vars": {
+    "ENVIRONMENT": "development"
+  },
+  "env": {
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging"
+      }
+    },
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production"
+      },
+      "routes": [
+        { "pattern": "example.com/*", "zone_name": "example.com" }
+      ]
+    }
+  }
+}
+```
+
+## Resource Management
+
+### KV Namespaces
+
+Create a KV namespace:
+
+```bash
+wrangler kv namespace create MY_KV
+```
+
+List namespaces:
+
+```bash
+wrangler kv namespace list
+```
+
+Manage keys:
+
+```bash
+# Put a key
+wrangler kv key put --binding MY_KV "my-key" "my-value"
+
+# Get a key
+wrangler kv key get --binding MY_KV "my-key"
+
+# Delete a key
+wrangler kv key delete --binding MY_KV "my-key"
+
+# List all keys
+wrangler kv key list --binding MY_KV
+```
+
+### R2 Buckets
+
+Create an R2 bucket:
+
+```bash
+wrangler r2 bucket create my-bucket
+```
+
+List buckets:
+
+```bash
+wrangler r2 bucket list
+```
+
+Manage objects:
+
+```bash
+# Put an object
+wrangler r2 object put my-bucket/file.txt --file ./local-file.txt
+
+# Get an object
+wrangler r2 object get my-bucket/file.txt
+
+# Delete an object
+wrangler r2 object delete my-bucket/file.txt
+```
+
+### D1 Databases
+
+Create a D1 database:
+
+```bash
+wrangler d1 create my-database
+```
+
+Execute SQL:
+
+```bash
+wrangler d1 execute my-database --command "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)"
+```
+
+Run migrations:
+
+```bash
+wrangler d1 migrations apply my-database
+```
+
+### Queues
+
+Create a queue:
+
+```bash
+wrangler queues create my-queue
+```
+
+List queues:
+
+```bash
+wrangler queues list
+```
+
+## Secrets Management
+
+Secrets are encrypted environment variables that aren't visible in your code.
+
+Add a secret:
+
+```bash
+wrangler secret put API_KEY
+# You'll be prompted to enter the value
+```
+
+List secrets:
+
+```bash
+wrangler secret list
+```
+
+Delete a secret:
+
+```bash
+wrangler secret delete API_KEY
+```
+
+Bulk upload secrets from a file:
+
+```bash
+wrangler secret bulk .env.production
+```
+
+## Deployments & Versions
+
+### Gradual Rollouts
+
+Wrangler supports gradual rollouts to test changes with a percentage of traffic:
+
+```bash
+# Upload a new version without deploying
+wrangler versions upload
+
+# Deploy with traffic split
+wrangler versions deploy --percentage 10
+```
+
+### Rollback
+
+Quickly rollback to a previous deployment:
+
+```bash
+wrangler rollback
+```
+
+View deployment history:
+
+```bash
+wrangler deployments list
+```
+
+## Advanced Features
+
+### Durable Objects
+
+Generate a Durable Object class:
+
+```bash
+wrangler init my-do --type durable-object
+```
+
+### Workers for Platforms
+
+Manage dispatch namespaces:
+
+```bash
+# Create a namespace
+wrangler dispatch-namespace create my-namespace
+
+# List namespaces
+wrangler dispatch-namespace list
+```
+
+### Analytics Engine
+
+Query analytics data:
+
+```bash
+wrangler analytics-engine sql --dataset my-dataset --query "SELECT * FROM my-dataset LIMIT 10"
+```
+
+### Workflows
+
+Manage Cloudflare Workflows:
+
+```bash
+# List workflow instances
+wrangler workflows list
+
+# Describe a workflow
+wrangler workflows describe my-workflow
+
+# Trigger a workflow
+wrangler workflows trigger my-workflow
+```
+
+## Programmatic API
+
+Wrangler can be used programmatically in Node.js applications:
+
+```typescript
+import { unstable_dev } from "wrangler";
+
+// Start a dev server programmatically
+const worker = await unstable_dev("src/index.ts", {
+  experimental: { disableExperimentalWarning: true },
+});
+
+// Send requests
+const response = await worker.fetch("http://localhost");
+console.log(await response.text());
+
+// Stop the server
+await worker.stop();
+```
+
+## Debugging
+
+### Chrome DevTools
+
+Wrangler integrates with Chrome DevTools for debugging:
+
+1. Start dev server with inspector:
+   ```bash
+   wrangler dev --inspector-port 9229
+   ```
+
+2. Open `chrome://inspect` in Chrome
+3. Click "inspect" next to your Worker
+4. Use breakpoints, console, and profiler
+
+### Verbose Logging
+
+Enable verbose output for troubleshooting:
+
+```bash
+wrangler dev --verbose
+```
+
+## Configuration Schema
+
+Wrangler provides a JSON schema for IDE autocompletion:
+
+```jsonc wrangler.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Your IDE will now provide autocomplete and validation
+}
+```
+
+## Common Workflows
+
+### Local Development to Production
+
+1. **Initialize project:**
+   ```bash
+   wrangler init my-worker
+   ```
+
+2. **Develop locally:**
+   ```bash
+   wrangler dev
+   ```
+
+3. **Create resources:**
+   ```bash
+   wrangler kv namespace create MY_KV
+   wrangler d1 create my-db
+   ```
+
+4. **Update configuration:**
+   ```jsonc wrangler.jsonc
+   {
+     "kv_namespaces": [
+       { "binding": "MY_KV", "id": "..." }
+     ],
+     "d1_databases": [
+       { "binding": "DB", "database_id": "..." }
+     ]
+   }
+   ```
+
+5. **Deploy:**
+   ```bash
+   wrangler deploy
+   ```
+
+6. **Monitor:**
+   ```bash
+   wrangler tail
+   ```
+
+### Testing with Different Bindings
+
+Test with local bindings during development:
+
+```bash
+# Development uses local simulator
+wrangler dev
+
+# Preview with production bindings
+wrangler dev --remote
+```
+
+<Warning>
+Using `--remote` runs your code on Cloudflare's network with production bindings. Use carefully to avoid unintended changes.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use TypeScript">
+    TypeScript provides better IDE support and catches errors before deployment:
+    
+    ```bash
+    wrangler init my-worker --type typescript
+    ```
+  </Accordion>
+
+  <Accordion title="Version Control Configuration">
+    Commit `wrangler.jsonc` but use secrets for sensitive data:
+    
+    ```bash
+    # Good: Use secrets for API keys
+    wrangler secret put API_KEY
+    
+    # Bad: Don't put secrets in wrangler.jsonc
+    ```
+  </Accordion>
+
+  <Accordion title="Environment-Specific Configuration">
+    Use environments for different deployment targets:
+    
+    ```jsonc
+    {
+      "env": {
+        "staging": { ... },
+        "production": { ... }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Test Before Deploying">
+    Always test locally before deploying:
+    
+    ```bash
+    wrangler dev  # Test locally first
+    wrangler deploy --dry-run  # Validate without deploying
+    wrangler deploy  # Deploy to production
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+**Authentication errors:**
+```bash
+# Login to Cloudflare
+wrangler login
+
+# Or use API token
+export CLOUDFLARE_API_TOKEN=your-token
+```
+
+**Build errors:**
+```bash
+# Clear cache and rebuild
+rm -rf node_modules/.cache
+wrangler deploy
+```
+
+**Port already in use:**
+```bash
+# Use a different port
+wrangler dev --port 8788
+```
+
+## Additional Resources
+
+- [Wrangler Commands Reference](https://developers.cloudflare.com/workers/wrangler/commands/)
+- [Configuration Options](https://developers.cloudflare.com/workers/wrangler/configuration/)
+- [Workers Examples](https://developers.cloudflare.com/workers/examples/)
+- [GitHub Repository](https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler)
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Miniflare" href="/core-tools/miniflare">
+    Local Workers simulator powered by workerd
+  </Card>
+  <Card title="Create Cloudflare" href="/core-tools/create-cloudflare">
+    Scaffold new Cloudflare projects
+  </Card>
+</CardGroup>

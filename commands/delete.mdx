@@ -1,0 +1,129 @@
+---
+title: wrangler delete
+description: Delete a Worker from Cloudflare
+---
+
+Delete a deployed Worker from your Cloudflare account.
+
+```bash
+wrangler delete [name] [options]
+```
+
+## Arguments
+
+<ParamField path="name" type="string">
+  Name of the worker
+</ParamField>
+
+## Options
+
+<ParamField path="--name" type="string">
+  Name of the worker
+</ParamField>
+
+<ParamField path="--dry-run" type="boolean">
+  Don't actually delete
+</ParamField>
+
+<ParamField path="--force" type="boolean">
+  Delete even if doing so will break other Workers that depend on this one
+</ParamField>
+
+## Examples
+
+### Delete a Worker interactively
+
+```bash
+wrangler delete my-worker
+```
+
+This will prompt you for confirmation before deleting.
+
+### Delete without confirmation
+
+```bash
+wrangler delete my-worker --force
+```
+
+### Preview deletion without executing
+
+```bash
+wrangler delete my-worker --dry-run
+```
+
+### Delete using name from config
+
+```bash
+wrangler delete
+```
+
+Wrangler will use the worker name from your `wrangler.json` file.
+
+## Behavior
+
+### Confirmation Prompt
+
+By default, `wrangler delete` requires confirmation before deletion:
+
+```
+Are you sure you want to delete my-worker? This action cannot be undone.
+```
+
+### Dependency Check
+
+If other Workers depend on the Worker you're trying to delete (through Service Bindings, Durable Objects, Dispatch Namespaces, or Tail Workers), Wrangler will warn you:
+
+```
+my-worker is currently in use by other Workers:
+
+- Worker consumer-worker uses this Worker as a Service Binding
+- Worker app-worker has a binding to the Durable Object Namespace "Counter" implemented by this Worker
+- Worker logger-worker uses this Worker as a Tail Worker
+
+You can still delete this Worker, but doing so WILL BREAK the Workers that depend on it.
+This will cause unexpected failures, and cannot be undone.
+Are you sure you want to continue?
+```
+
+Use `--force` to skip the dependency check and delete anyway.
+
+### Workers Sites Cleanup
+
+If the Worker uses Workers Sites, the associated KV namespaces will also be deleted:
+
+- `__<worker-name>-workers_sites_assets`
+- `__<worker-name>-workers_sites_assets_preview`
+
+## Safety Features
+
+### Dry Run
+
+Test the delete command without actually removing anything:
+
+```bash
+wrangler delete my-worker --dry-run
+```
+
+This will validate the Worker name and check dependencies, but won't perform the deletion.
+
+### Force Delete
+
+Bypass all confirmation prompts and dependency checks:
+
+```bash
+wrangler delete my-worker --force
+```
+
+**Warning:** This will delete the Worker even if other Workers depend on it, which may cause production failures.
+
+## Related Dependencies
+
+A Worker may be used by other Workers in the following ways:
+
+- **Service Bindings**: Other Workers call this Worker via a service binding
+- **Durable Objects**: Other Workers use Durable Object classes defined in this Worker
+- **Dispatch Namespaces**: This Worker serves as an outbound worker in a Dynamic Dispatch Namespace
+- **Tail Workers**: Other Workers send logs to this Worker as a tail consumer
+- **Pages Functions**: A Pages project has a service binding to this Worker
+
+Deleting a Worker that's being used will break the dependent Workers.

@@ -1,0 +1,417 @@
+---
+title: "wrangler d1"
+description: "Manage Workers D1 databases"
+---
+
+Manage D1 databases, execute SQL commands, handle migrations, and work with Time Travel features.
+
+## Commands
+
+### Database Management
+
+<Accordion title="wrangler d1 create">
+  Create a new D1 database.
+
+  ```bash
+  wrangler d1 create <name>
+  ```
+
+  <ParamField path="name" type="string" required>
+    The name of the new D1 database
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--location" type="string">
+    A hint for the primary location of the new DB. Options:
+    - `weur`: Western Europe
+    - `eeur`: Eastern Europe
+    - `apac`: Asia Pacific
+    - `oc`: Oceania
+    - `wnam`: Western North America
+    - `enam`: Eastern North America
+  </ParamField>
+
+  <ParamField path="--jurisdiction" type="string">
+    The location to restrict the D1 database to run and store data within to comply with local regulations. Options:
+    - `eu`: The European Union
+    - `fedramp`: FedRAMP-compliant data centers
+  </ParamField>
+
+  <ParamField path="--update-config" type="boolean">
+    Automatically update your wrangler configuration file with the new database binding
+  </ParamField>
+
+  <ParamField path="--binding-name" type="string">
+    The name of the binding to use in your wrangler configuration file
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 create my-database
+  wrangler d1 create my-database --location=weur
+  wrangler d1 create eu-database --jurisdiction=eu
+  ```
+
+  Note: If jurisdictions are set, the location hint is ignored.
+</Accordion>
+
+<Accordion title="wrangler d1 list">
+  List all D1 databases in your account.
+
+  ```bash
+  wrangler d1 list
+  ```
+
+  **Options:**
+
+  <ParamField path="--json" type="boolean" default="false">
+    Return output as clean JSON
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 list
+  wrangler d1 list --json
+  ```
+</Accordion>
+
+<Accordion title="wrangler d1 info">
+  Get information about a D1 database, including the current database size and state.
+
+  ```bash
+  wrangler d1 info <name>
+  ```
+
+  <ParamField path="name" type="string" required>
+    The name of the DB
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--json" type="boolean" default="false">
+    Return output as clean JSON
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 info my-database
+  wrangler d1 info my-database --json
+  ```
+
+  Shows database size, creation date, version, and 24-hour metrics (read/write queries and rows).
+</Accordion>
+
+<Accordion title="wrangler d1 delete">
+  Delete a D1 database.
+
+  ```bash
+  wrangler d1 delete <name>
+  ```
+
+  <ParamField path="name" type="string" required>
+    The name or binding of the DB
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--skip-confirmation" type="boolean" default="false">
+    Skip confirmation (alias: `-y`)
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 delete my-database
+  wrangler d1 delete my-database --skip-confirmation
+  ```
+
+  This action is irreversible and will permanently delete all data in the database.
+</Accordion>
+
+### SQL Execution
+
+<Accordion title="wrangler d1 execute">
+  Execute a SQL command or SQL file against a D1 database.
+
+  ```bash
+  wrangler d1 execute <database>
+  ```
+
+  <ParamField path="database" type="string" required>
+    The name or binding of the DB
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--command" type="string">
+    The SQL query you wish to execute, or multiple queries separated by `;`
+  </ParamField>
+
+  <ParamField path="--file" type="string">
+    A .sql file to ingest
+  </ParamField>
+
+  <ParamField path="--yes" type="boolean">
+    Answer "yes" to any prompts (alias: `-y`)
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Execute commands/files against a local DB for use with wrangler dev
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Execute commands/files against a remote D1 database
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean" default="false">
+    Execute commands/files against a preview D1 database
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Specify directory to use for local persistence (for use with `--local`)
+  </ParamField>
+
+  <ParamField path="--json" type="boolean" default="false">
+    Return output as clean JSON
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 execute my-database --command="SELECT * FROM users"
+  wrangler d1 execute my-database --file=./schema.sql
+  wrangler d1 execute my-database --command="SELECT * FROM users" --remote
+  wrangler d1 execute my-database --file=./seed.sql --local
+  ```
+
+  You must provide either `--command` or `--file`. By default, executes against local database unless `--remote` is specified.
+</Accordion>
+
+### Data Import/Export
+
+<Accordion title="wrangler d1 export">
+  Export the contents or schema of your database as a .sql file.
+
+  ```bash
+  wrangler d1 export <name> --output <path>
+  ```
+
+  <ParamField path="name" type="string" required>
+    The name of the D1 database to export
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--output" type="string" required>
+    Path to the SQL file for your export
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Export from your local DB you use with wrangler dev
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Export from a remote D1 database
+  </ParamField>
+
+  <ParamField path="--table" type="string">
+    Specify which tables to include in export (can be specified multiple times)
+  </ParamField>
+
+  <ParamField path="--no-schema" type="boolean">
+    Only output table contents, not the DB schema
+  </ParamField>
+
+  <ParamField path="--no-data" type="boolean">
+    Only output table schema, not the contents of the DBs themselves
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 export my-database --output=backup.sql
+  wrangler d1 export my-database --output=backup.sql --remote
+  wrangler d1 export my-database --output=schema.sql --no-data
+  wrangler d1 export my-database --output=data.sql --table=users --table=posts
+  ```
+
+  You cannot specify both `--no-schema` and `--no-data`.
+</Accordion>
+
+### Migrations
+
+<Accordion title="wrangler d1 migrations create">
+  Create a new migration file.
+
+  ```bash
+  wrangler d1 migrations create <database> <message>
+  ```
+
+  <ParamField path="database" type="string" required>
+    The name or binding of the DB
+  </ParamField>
+
+  <ParamField path="message" type="string" required>
+    The migration message (description)
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 migrations create my-database "create users table"
+  wrangler d1 migrations create my-database "add email column"
+  ```
+
+  This will generate a new versioned file inside the 'migrations' folder with format `0000_create_user_table.sql`.
+</Accordion>
+
+<Accordion title="wrangler d1 migrations list">
+  View a list of unapplied migration files.
+
+  ```bash
+  wrangler d1 migrations list <database>
+  ```
+
+  <ParamField path="database" type="string" required>
+    The name or binding of the DB
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--local" type="boolean">
+    Check migrations against a local DB for use with wrangler dev
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Check migrations against a remote DB
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean" default="false">
+    Check migrations against a preview D1 DB
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Specify directory to use for local persistence (you must use `--local` with this flag)
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 migrations list my-database
+  wrangler d1 migrations list my-database --remote
+  ```
+</Accordion>
+
+<Accordion title="wrangler d1 migrations apply">
+  Apply any unapplied D1 migrations.
+
+  ```bash
+  wrangler d1 migrations apply <database>
+  ```
+
+  <ParamField path="database" type="string" required>
+    The name or binding of the DB
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--local" type="boolean">
+    Execute commands/files against a local DB for use with wrangler dev
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Execute commands/files against a remote DB
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean" default="false">
+    Execute commands/files against a preview D1 DB
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Specify directory to use for local persistence (you must use `--local` with this flag)
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 migrations apply my-database
+  wrangler d1 migrations apply my-database --remote
+  ```
+
+  This command will prompt you to confirm the migrations you are about to apply. If applying a migration results in an error, it will be rolled back, and the previous successful migration will remain applied.
+</Accordion>
+
+### Time Travel
+
+<Accordion title="wrangler d1 time-travel info">
+  Retrieve information about a database at a specific point-in-time using Time Travel.
+
+  ```bash
+  wrangler d1 time-travel info <database>
+  ```
+
+  <ParamField path="database" type="string" required>
+    The name or binding of the DB
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--timestamp" type="string">
+    Accepts a Unix (seconds from epoch) or RFC3339 timestamp (e.g. 2023-07-13T08:46:42.228Z) to retrieve a bookmark for
+  </ParamField>
+
+  <ParamField path="--json" type="boolean" default="false">
+    Return output as clean JSON
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 time-travel info my-database
+  wrangler d1 time-travel info my-database --timestamp=2023-07-13T08:46:42.228Z
+  wrangler d1 time-travel info my-database --timestamp=1689240402
+  ```
+
+  For more information about Time Travel, see the [D1 Time Travel documentation](https://developers.cloudflare.com/d1/reference/time-travel/).
+</Accordion>
+
+<Accordion title="wrangler d1 time-travel restore">
+  Restore a database back to a specific point-in-time.
+
+  ```bash
+  wrangler d1 time-travel restore <database>
+  ```
+
+  <ParamField path="database" type="string" required>
+    The name or binding of the DB
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--bookmark" type="string">
+    Bookmark to use for time travel
+  </ParamField>
+
+  <ParamField path="--timestamp" type="string">
+    Accepts a Unix (seconds from epoch) or RFC3339 timestamp (e.g. 2023-07-13T08:46:42.228Z) to retrieve a bookmark for (within the last 30 days)
+  </ParamField>
+
+  <ParamField path="--json" type="boolean" default="false">
+    Return output as clean JSON
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler d1 time-travel restore my-database --bookmark=abc123
+  wrangler d1 time-travel restore my-database --timestamp=2023-07-13T08:46:42.228Z
+  ```
+
+  You must provide either `--timestamp` or `--bookmark`, but not both. This will overwrite all data in the database and cancel in-flight queries and transactions.
+
+  For more information about Time Travel, see the [D1 Time Travel documentation](https://developers.cloudflare.com/d1/reference/time-travel/).
+</Accordion>

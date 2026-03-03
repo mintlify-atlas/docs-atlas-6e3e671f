@@ -1,0 +1,480 @@
+---
+title: 'D1 Database'
+description: 'Manage and query serverless SQL databases with D1'
+---
+
+## Overview
+
+Cloudflare D1 is a serverless SQL database built on SQLite. It provides a familiar SQL interface with global distribution and automatic replication.
+
+## Database Management
+
+### Create a Database
+
+Create a new D1 database:
+
+```bash
+wrangler d1 create <name> [--location <hint>] [--jurisdiction <jurisdiction>]
+```
+
+**Options:**
+- `<name>` - Database name (required)
+- `--location <hint>` - Primary location hint
+  - `weur` - Western Europe
+  - `eeur` - Eastern Europe
+  - `apac` - Asia Pacific
+  - `oc` - Oceania
+  - `wnam` - Western North America
+  - `enam` - Eastern North America
+- `--jurisdiction` - Data residency jurisdiction
+  - `eu` - European Union
+  - `fedramp` - FedRAMP-compliant data centers
+- `--update-config` - Automatically add to wrangler.json
+- `--name <binding>` - Custom binding name
+
+**Examples:**
+
+```bash
+# Create a basic database
+wrangler d1 create my-database
+
+# Create with location hint
+wrangler d1 create my-database --location enam
+
+# Create with EU jurisdiction
+wrangler d1 create eu-database --jurisdiction eu
+```
+
+**Configuration:**
+
+Add to your wrangler.json:
+
+```json wrangler.json
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-database",
+      "database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    }
+  ]
+}
+```
+
+### List Databases
+
+View all D1 databases in your account:
+
+```bash
+wrangler d1 list
+```
+
+**Example Output:**
+```json
+[
+  {
+    "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "name": "my-database",
+    "version": "alpha",
+    "created_at": "2024-01-15T10:30:00.000Z"
+  }
+]
+```
+
+### Get Database Info
+
+Retrieve detailed information about a database:
+
+```bash
+wrangler d1 info <database>
+```
+
+**Example:**
+
+```bash
+wrangler d1 info my-database
+```
+
+### Delete a Database
+
+Delete a D1 database and all its data:
+
+```bash
+wrangler d1 delete <database> [--skip-confirmation]
+```
+
+**Options:**
+- `<database>` - Database name or binding
+- `--skip-confirmation, -y` - Skip confirmation prompt
+
+<Warning>
+This permanently deletes the database and all data. This action cannot be undone.
+</Warning>
+
+## Executing SQL
+
+<Tabs>
+  <Tab title="Command">
+    ### Execute SQL Commands
+
+    Run SQL directly from the command line:
+
+    ```bash
+    wrangler d1 execute <database> --command "<sql>"
+    ```
+
+    **Options:**
+    - `<database>` - Database name or binding
+    - `--command` - SQL query or queries (separated by `;`)
+    - `--local` - Execute against local database
+    - `--remote` - Execute against remote database
+    - `--preview` - Execute against preview database
+    - `--persist-to <dir>` - Local persistence directory (with `--local`)
+    - `--json` - Output as JSON
+    - `-y, --yes` - Skip confirmation prompts
+
+    **Examples:**
+
+    ```bash
+    # Create a table
+    wrangler d1 execute my-database --command "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)"
+
+    # Insert data
+    wrangler d1 execute my-database --command "INSERT INTO users (name, email) VALUES ('Alice', 'alice@example.com')"
+
+    # Query data
+    wrangler d1 execute my-database --command "SELECT * FROM users"
+
+    # Multiple queries
+    wrangler d1 execute my-database --command "INSERT INTO users (name, email) VALUES ('Bob', 'bob@example.com'); SELECT * FROM users;"
+
+    # Local development
+    wrangler d1 execute my-database --command "SELECT * FROM users" --local
+
+    # JSON output
+    wrangler d1 execute my-database --command "SELECT * FROM users" --json
+    ```
+  </Tab>
+
+  <Tab title="File">
+    ### Execute SQL Files
+
+    Run SQL from a file:
+
+    ```bash
+    wrangler d1 execute <database> --file <path>
+    ```
+
+    **Options:**
+    - `<database>` - Database name or binding
+    - `--file` - Path to SQL file
+    - `--local` - Execute against local database
+    - `--remote` - Execute against remote database
+    - `--preview` - Execute against preview database
+    - `--persist-to <dir>` - Local persistence directory
+    - `--json` - Output as JSON
+    - `-y, --yes` - Skip confirmation prompts
+
+    **Example SQL File (schema.sql):**
+
+    ```sql
+    -- Create tables
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    -- Insert sample data
+    INSERT INTO users (name, email) VALUES 
+      ('Alice', 'alice@example.com'),
+      ('Bob', 'bob@example.com');
+    ```
+
+    **Execute:**
+
+    ```bash
+    # Execute locally
+    wrangler d1 execute my-database --file ./schema.sql --local
+
+    # Execute remotely (production)
+    wrangler d1 execute my-database --file ./schema.sql --remote
+
+    # Execute on preview database
+    wrangler d1 execute my-database --file ./schema.sql --remote --preview
+    ```
+
+    <Warning>
+    When executing files remotely, the database will be unavailable during processing. Use `--yes` flag in CI/CD to skip prompts.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Data Management
+
+### Export Data
+
+Export database data to a SQL file:
+
+```bash
+wrangler d1 export <database> [--output <file>] [--local] [--remote]
+```
+
+**Options:**
+- `<database>` - Database name or binding
+- `--output` - Output file path (default: `<database>.sql`)
+- `--local` - Export from local database
+- `--remote` - Export from remote database
+- `--no-schema` - Exclude schema (data only)
+- `--no-data` - Exclude data (schema only)
+- `--table <name>` - Export specific table
+
+**Examples:**
+
+```bash
+# Export entire database
+wrangler d1 export my-database --remote --output backup.sql
+
+# Export schema only
+wrangler d1 export my-database --remote --no-data --output schema.sql
+
+# Export specific table
+wrangler d1 export my-database --remote --table users --output users.sql
+```
+
+### Insights and Analytics
+
+View database insights and query analytics:
+
+```bash
+wrangler d1 insights <database>
+```
+
+**Shows:**
+- Query performance metrics
+- Database size and growth
+- Most expensive queries
+- Query frequency
+
+## Migrations
+
+### Create Migration
+
+Generate a new migration file:
+
+```bash
+wrangler d1 migrations create <database> <name>
+```
+
+**Example:**
+
+```bash
+wrangler d1 migrations create my-database add_users_table
+```
+
+Creates: `migrations/0001_add_users_table.sql`
+
+### List Migrations
+
+View migration status:
+
+```bash
+wrangler d1 migrations list <database> [--local] [--remote]
+```
+
+### Apply Migrations
+
+Apply pending migrations:
+
+```bash
+wrangler d1 migrations apply <database> [--local] [--remote]
+```
+
+**Examples:**
+
+```bash
+# Apply to local database
+wrangler d1 migrations apply my-database --local
+
+# Apply to remote database
+wrangler d1 migrations apply my-database --remote
+```
+
+## Time Travel
+
+Restore database to a previous state:
+
+```bash
+wrangler d1 time-travel restore <database> --bookmark <bookmark>
+```
+
+**Options:**
+- `<database>` - Database name or binding
+- `--bookmark` - Bookmark/timestamp to restore to
+- `--json` - JSON output
+
+**Get current bookmark:**
+
+```bash
+wrangler d1 time-travel info <database>
+```
+
+## Worker Integration
+
+Query D1 from your Worker:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    // Simple query
+    const { results } = await env.DB.prepare(
+      "SELECT * FROM users WHERE email = ?"
+    ).bind("alice@example.com").first();
+
+    // Multiple queries (batch)
+    const batch = [
+      env.DB.prepare("INSERT INTO users (name, email) VALUES (?, ?)").bind("Charlie", "charlie@example.com"),
+      env.DB.prepare("SELECT * FROM users")
+    ];
+    const batchResults = await env.DB.batch(batch);
+
+    // Transaction-like behavior
+    await env.DB.batch([
+      env.DB.prepare("UPDATE users SET name = ? WHERE id = ?").bind("Alice Updated", 1),
+      env.DB.prepare("INSERT INTO posts (user_id, title) VALUES (?, ?)").bind(1, "New Post")
+    ]);
+
+    // Get single value
+    const user = await env.DB.prepare(
+      "SELECT * FROM users WHERE id = ?"
+    ).bind(1).first();
+
+    // Get all results
+    const { results: allUsers } = await env.DB.prepare(
+      "SELECT * FROM users"
+    ).all();
+
+    // Raw query (use with caution)
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) as total FROM users"
+    ).first("total");
+
+    return Response.json({ user, count });
+  }
+};
+```
+
+## Local Development
+
+### Setup Local Database
+
+D1 automatically creates local databases when you run:
+
+```bash
+wrangler dev
+```
+
+Data is stored in `.wrangler/state/v3/d1/`.
+
+### Execute Locally
+
+```bash
+# Run queries against local database
+wrangler d1 execute my-database --command "SELECT * FROM users" --local
+
+# Apply migrations locally
+wrangler d1 migrations apply my-database --local
+
+# Custom persistence directory
+wrangler d1 execute my-database --command "SELECT 1" --local --persist-to ./db
+```
+
+### Preview Database
+
+Use a separate preview database for testing:
+
+```json wrangler.json
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-database",
+      "database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "preview_database_id": "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+    }
+  ]
+}
+```
+
+Execute against preview:
+
+```bash
+wrangler d1 execute my-database --command "SELECT * FROM users" --remote --preview
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Schema Design" icon="table">
+    - Use migrations for schema changes
+    - Add indexes for frequently queried columns
+    - Use AUTOINCREMENT for primary keys
+    - Define foreign keys for relationships
+  </Card>
+
+  <Card title="Query Optimization" icon="gauge">
+    - Use prepared statements (prevents SQL injection)
+    - Batch multiple queries together
+    - Add indexes to improve read performance
+    - Use EXPLAIN to analyze query plans
+  </Card>
+
+  <Card title="Development Workflow" icon="code">
+    - Test queries locally with `--local`
+    - Use preview databases for staging
+    - Apply migrations to remote incrementally
+    - Export backups regularly
+  </Card>
+
+  <Card title="Data Management" icon="database">
+    - Use transactions (batch) for atomic operations
+    - Implement proper error handling
+    - Monitor database size and performance
+    - Use Time Travel for point-in-time recovery
+  </Card>
+</CardGroup>
+
+## SQL Support
+
+D1 supports SQLite syntax:
+
+- Standard SQL operations (SELECT, INSERT, UPDATE, DELETE)
+- JOINs (INNER, LEFT, RIGHT, FULL)
+- Aggregate functions (COUNT, SUM, AVG, MIN, MAX)
+- Window functions
+- CTEs (Common Table Expressions)
+- Indexes and constraints
+- Triggers and views
+
+## Limits
+
+- **Database size**: 10 GB (paid plans)
+- **Query execution time**: 30 seconds
+- **Rows per query**: 100,000
+- **Batch size**: 1,000 statements
+
+## Related Commands
+
+- [KV Storage](/platform/kv-storage) - Key-value storage
+- [R2 Storage](/platform/r2-storage) - Object storage
+- [Durable Objects](/platform/durable-objects) - Stateful coordination

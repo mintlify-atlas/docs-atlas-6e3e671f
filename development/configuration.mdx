@@ -1,0 +1,795 @@
+---
+title: Configuration
+description: Configure Workers with wrangler.json and wrangler.toml
+---
+
+Configure your Worker using `wrangler.json` or `wrangler.toml`. Wrangler supports both formats.
+
+<Note>
+  This documentation uses `wrangler.json` (JSONC format with comments). All examples can be converted to TOML format.
+</Note>
+
+## Configuration File
+
+### Location
+
+Wrangler looks for configuration in:
+
+1. `wrangler.json` or `wrangler.jsonc` (JSON with comments)
+2. `wrangler.toml`
+3. Custom path: `wrangler dev --config path/to/config.json`
+
+### Basic Configuration
+
+```json wrangler.json
+{
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01"
+}
+```
+
+## Core Options
+
+### name
+
+The name of your Worker (required for deployment):
+
+```json
+{
+  "name": "my-worker"
+}
+```
+
+### main
+
+Entry point for your Worker:
+
+```json
+{
+  "main": "src/index.ts"
+}
+```
+
+Supported formats:
+- `*.ts` - TypeScript
+- `*.js` - JavaScript
+- `*.mjs` - ES modules
+- `*.tsx` / `*.jsx` - JSX
+
+### compatibility_date
+
+The compatibility date for the Workers runtime:
+
+```json
+{
+  "compatibility_date": "2024-01-01"
+}
+```
+
+This locks your Worker to specific runtime behaviors. Always use the latest date when creating new Workers.
+
+### compatibility_flags
+
+Enable experimental or backward-compatible features:
+
+```json
+{
+  "compatibility_flags": [
+    "nodejs_compat",
+    "service_binding_extra_handlers"
+  ]
+}
+```
+
+**Common flags:**
+- `nodejs_compat` - Node.js built-in modules and APIs
+- `nodejs_als` - Node.js AsyncLocalStorage
+- `streams_enable_constructors` - Writable/Transform stream constructors
+- `transformstream_enable_standard_constructor` - Standard TransformStream
+
+See [Compatibility Dates](https://developers.cloudflare.com/workers/configuration/compatibility-dates/) for all flags.
+
+### account_id
+
+Your Cloudflare account ID:
+
+```json
+{
+  "account_id": "abc123def456"
+}
+```
+
+Find your account ID in the Cloudflare dashboard URL or run `wrangler whoami`.
+
+### workers_dev
+
+Deploy to `*.workers.dev` subdomain:
+
+```json
+{
+  "workers_dev": true
+}
+```
+
+Set to `false` to only deploy to routes/custom domains.
+
+## Routes and Triggers
+
+### routes
+
+Route patterns that trigger your Worker:
+
+```json
+{
+  "routes": [
+    "example.com/*",
+    "*.example.com/api/*"
+  ]
+}
+```
+
+Or with zone configuration:
+
+```json
+{
+  "routes": [
+    {
+      "pattern": "example.com/*",
+      "zone_name": "example.com"
+    },
+    {
+      "pattern": "api.example.com/*",
+      "zone_id": "abc123"
+    }
+  ]
+}
+```
+
+### route (single)
+
+Define a single route:
+
+```json
+{
+  "route": "example.com/*"
+}
+```
+
+### triggers.crons
+
+Scheduled events (Cron Triggers):
+
+```json
+{
+  "triggers": {
+    "crons": [
+      "0 0 * * *",
+      "*/30 * * * *"
+    ]
+  }
+}
+```
+
+**Cron syntax:**
+- `0 0 * * *` - Daily at midnight UTC
+- `*/15 * * * *` - Every 15 minutes
+- `0 */4 * * *` - Every 4 hours
+- `0 9 * * MON-FRI` - Weekdays at 9am UTC
+
+Minimum interval: 1 minute on paid plans, 30 seconds on Enterprise.
+
+## Bindings
+
+Bindings expose resources to your Worker via the `env` parameter.
+
+### KV Namespaces
+
+```json
+{
+  "kv_namespaces": [
+    {
+      "binding": "MY_KV",
+      "id": "abc123def456",
+      "preview_id": "xyz789"
+    }
+  ]
+}
+```
+
+Access in your Worker:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    await env.MY_KV.put("key", "value");
+    const value = await env.MY_KV.get("key");
+    return new Response(value);
+  }
+}
+```
+
+### R2 Buckets
+
+```json
+{
+  "r2_buckets": [
+    {
+      "binding": "MY_BUCKET",
+      "bucket_name": "my-bucket",
+      "preview_bucket_name": "my-preview-bucket"
+    }
+  ]
+}
+```
+
+### D1 Databases
+
+```json
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-database",
+      "database_id": "abc123"
+    }
+  ]
+}
+```
+
+Local development uses SQLite:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    const result = await env.DB.prepare(
+      "SELECT * FROM users WHERE id = ?"
+    ).bind(1).first();
+    return Response.json(result);
+  }
+}
+```
+
+### Durable Objects
+
+```json
+{
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MY_DO",
+        "class_name": "MyDurableObject",
+        "script_name": "my-worker"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["MyDurableObject"]
+    }
+  ]
+}
+```
+
+### Queues
+
+```json
+{
+  "queues": {
+    "producers": [
+      {
+        "binding": "MY_QUEUE",
+        "queue": "my-queue"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "my-queue",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30
+      }
+    ]
+  }
+}
+```
+
+### Service Bindings
+
+Bind to other Workers:
+
+```json
+{
+  "services": [
+    {
+      "binding": "AUTH_SERVICE",
+      "service": "auth-worker",
+      "environment": "production"
+    }
+  ]
+}
+```
+
+Use RPC for type-safe service bindings:
+
+```typescript
+// auth-worker.ts
+export class AuthService extends WorkerEntrypoint {
+  async authenticate(token: string) {
+    // ...
+  }
+}
+
+// main worker
+export default {
+  async fetch(request, env) {
+    const result = await env.AUTH_SERVICE.authenticate("token");
+    return Response.json(result);
+  }
+}
+```
+
+### AI Bindings
+
+```json
+{
+  "ai": {
+    "binding": "AI"
+  }
+}
+```
+
+### Vectorize
+
+```json
+{
+  "vectorize": [
+    {
+      "binding": "VECTOR_INDEX",
+      "index_name": "my-index"
+    }
+  ]
+}
+```
+
+### Hyperdrive
+
+```json
+{
+  "hyperdrive": [
+    {
+      "binding": "DB",
+      "id": "abc123",
+      "localConnectionString": "postgres://localhost:5432/mydb"
+    }
+  ]
+}
+```
+
+Local connection string is only used in development.
+
+### Environment Variables
+
+Define plain text variables:
+
+```json
+{
+  "vars": {
+    "ENVIRONMENT": "production",
+    "API_URL": "https://api.example.com",
+    "MAX_RETRIES": 3
+  }
+}
+```
+
+For secrets, use `.dev.vars` in development and `wrangler secret put` for production.
+
+## Build Configuration
+
+### no_bundle
+
+Skip the build step:
+
+```json
+{
+  "no_bundle": true
+}
+```
+
+Use for pre-built Workers or when using an external bundler.
+
+### minify
+
+Minify the bundled Worker:
+
+```json
+{
+  "minify": true
+}
+```
+
+### keep_names
+
+Preserve function and class names:
+
+```json
+{
+  "keep_names": true
+}
+```
+
+### build.command
+
+Custom build command:
+
+```json
+{
+  "build": {
+    "command": "npm run build",
+    "cwd": "./",
+    "watch_dirs": ["src"]
+  }
+}
+```
+
+### rules
+
+Module rules for non-JS files:
+
+```json
+{
+  "rules": [
+    {
+      "type": "CompiledWasm",
+      "globs": ["**/*.wasm"],
+      "fallthrough": true
+    },
+    {
+      "type": "Text",
+      "globs": ["**/*.txt"]
+    }
+  ]
+}
+```
+
+**Rule types:**
+- `CompiledWasm` - WebAssembly modules
+- `Text` - Text files
+- `Data` - Binary data as ArrayBuffer
+- `ESModule` - ES modules
+- `CommonJS` - CommonJS modules
+
+### tsconfig
+
+Custom TypeScript configuration:
+
+```json
+{
+  "tsconfig": "./tsconfig.json"
+}
+```
+
+## Development Configuration
+
+### dev
+
+Development-specific settings:
+
+```json
+{
+  "dev": {
+    "ip": "0.0.0.0",
+    "port": 8787,
+    "local_protocol": "http",
+    "upstream_protocol": "https",
+    "host": "example.com",
+    "persist_to": ".wrangler/state"
+  }
+}
+```
+
+### dev.ip
+
+Bind address for the dev server:
+
+```json
+{
+  "dev": {
+    "ip": "127.0.0.1"
+  }
+}
+```
+
+### dev.port
+
+Port for the dev server:
+
+```json
+{
+  "dev": {
+    "port": 8787
+  }
+}
+```
+
+### dev.local_protocol
+
+Protocol for the dev server:
+
+```json
+{
+  "dev": {
+    "local_protocol": "https",
+    "https_cert_path": "./cert.pem",
+    "https_key_path": "./key.pem"
+  }
+}
+```
+
+### dev.persist_to
+
+Persistence directory:
+
+```json
+{
+  "dev": {
+    "persist_to": ".wrangler/state"
+  }
+}
+```
+
+## Environments
+
+Define environment-specific configurations:
+
+```json
+{
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+  "env": {
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging"
+      },
+      "kv_namespaces": [
+        {
+          "binding": "MY_KV",
+          "id": "staging-kv-id"
+        }
+      ]
+    },
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production"
+      },
+      "routes": ["example.com/*"]
+    }
+  }
+}
+```
+
+Use environments:
+
+```bash
+wrangler dev --env staging
+wrangler deploy --env production
+```
+
+## Assets
+
+### Workers Assets (Recommended)
+
+```json
+{
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  }
+}
+```
+
+### Workers Sites (Legacy)
+
+```json
+{
+  "site": {
+    "bucket": "./public"
+  }
+}
+```
+
+<Warning>
+  Workers Sites is deprecated. Use Workers Assets instead.
+</Warning>
+
+## Advanced Options
+
+### unsafe
+
+Unsafe bindings for advanced use cases:
+
+```json
+{
+  "unsafe": {
+    "bindings": [
+      {
+        "name": "MY_BINDING",
+        "type": "plain_text",
+        "text": "value"
+      }
+    ]
+  }
+}
+```
+
+### limits
+
+Resource limits (Enterprise only):
+
+```json
+{
+  "limits": {
+    "cpu_ms": 50
+  }
+}
+```
+
+### logpush
+
+Enable Logpush:
+
+```json
+{
+  "logpush": true
+}
+```
+
+### tail_consumers
+
+Tail consumers for real-time logging:
+
+```json
+{
+  "tail_consumers": [
+    {
+      "service": "log-consumer-worker"
+    }
+  ]
+}
+```
+
+### placement
+
+Smart Placement:
+
+```json
+{
+  "placement": {
+    "mode": "smart"
+  }
+}
+```
+
+## TypeScript Types
+
+Generate TypeScript types from your configuration:
+
+```bash
+wrangler types
+```
+
+This creates `worker-configuration.d.ts` with type definitions for your bindings:
+
+```typescript
+interface Env {
+  MY_KV: KVNamespace;
+  DB: D1Database;
+  MY_BUCKET: R2Bucket;
+  ENVIRONMENT: string;
+}
+```
+
+Use in your Worker:
+
+```typescript
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    // TypeScript knows about all your bindings
+    await env.MY_KV.put("key", "value");
+    return new Response("OK");
+  }
+}
+```
+
+## Configuration Validation
+
+Wrangler validates your configuration and shows helpful error messages:
+
+```bash
+wrangler deploy
+# Error: Unexpected options passed to wrangler:
+# - bindings.MY_KV.id: Expected string, received undefined
+```
+
+## Full Example
+
+```json wrangler.json
+{
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "abc123",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "example.com/*",
+      "zone_name": "example.com"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "API_URL": "https://api.example.com"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "MY_KV",
+      "id": "abc123"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MY_BUCKET",
+      "bucket_name": "my-bucket"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-database",
+      "database_id": "xyz789"
+    }
+  ],
+  "services": [
+    {
+      "binding": "AUTH_SERVICE",
+      "service": "auth-worker"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 0 * * *"]
+  },
+  "build": {
+    "command": "npm run build"
+  },
+  "dev": {
+    "ip": "0.0.0.0",
+    "port": 8787,
+    "persist_to": ".wrangler/state"
+  },
+  "env": {
+    "staging": {
+      "vars": {
+        "ENVIRONMENT": "staging"
+      }
+    }
+  }
+}
+```
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Local Development" icon="laptop-code" href="/development/local-development">
+    Run Workers locally with wrangler dev
+  </Card>
+  <Card title="Bindings" icon="link" href="/advanced/bindings">
+    Learn about all available bindings
+  </Card>
+  <Card title="Environments" icon="layer-group" href="/advanced/environments">
+    Manage multiple environments
+  </Card>
+</CardGroup>

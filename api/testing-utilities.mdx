@@ -1,0 +1,514 @@
+---
+title: Testing Utilities
+description: Utilities and helpers for testing Cloudflare Workers.
+---
+
+Cloudflare Workers SDK provides several testing utilities to help you write comprehensive tests for your Workers.
+
+## D1 Testing Utilities
+
+### `applyD1Migrations()`
+
+Apply D1 migrations from a directory.
+
+```typescript
+import { applyD1Migrations, env } from "cloudflare:test";
+import { beforeAll, it, expect } from "vitest";
+
+beforeAll(async () => {
+  await applyD1Migrations(env.DB, "./migrations");
+});
+
+it("should have schema", async () => {
+  const result = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table'"
+  ).all();
+  expect(result.results).toContainEqual({ name: "users" });
+});
+```
+
+<ParamField path="db" type="D1Database" required>
+  D1 database binding
+</ParamField>
+
+<ParamField path="migrationsPath" type="string" required>
+  Path to migrations directory containing SQL files
+</ParamField>
+
+<ResponseField name="void" type="Promise<void>">
+  Resolves when migrations are complete
+</ResponseField>
+
+---
+
+### `listD1Databases()`
+
+List all D1 databases in local development.
+
+```typescript
+import { listD1Databases } from "@cloudflare/vitest-pool-workers/config";
+
+const databases = await listD1Databases(".wrangler/state/v3/d1");
+console.log(databases); // ["my-db", "test-db"]
+```
+
+<ParamField path="persistPath" type="string" required>
+  Path to D1 persistence directory
+</ParamField>
+
+<ResponseField name="databases" type="Promise<string[]>">
+  Array of database names
+</ResponseField>
+
+---
+
+### `getD1DatabasePath()`
+
+Get the SQLite file path for a D1 database.
+
+```typescript
+import { getD1DatabasePath } from "@cloudflare/vitest-pool-workers/config";
+
+const dbPath = getD1DatabasePath(".wrangler/state/v3/d1", "my-db");
+console.log(dbPath); // ".wrangler/state/v3/d1/my-db.sqlite"
+```
+
+<ParamField path="persistPath" type="string" required>
+  Path to D1 persistence directory
+</ParamField>
+
+<ParamField path="databaseName" type="string" required>
+  Database name
+</ParamField>
+
+<ResponseField name="path" type="string">
+  Full path to the SQLite database file
+</ResponseField>
+
+---
+
+## Pages Testing Utilities
+
+### `getPagesAssetFetcher()`
+
+Get a fetcher for Pages assets.
+
+```typescript
+import { getPagesAssetFetcher } from "@cloudflare/vitest-pool-workers/config";
+import { expect, it } from "vitest";
+
+it("should serve static files", async () => {
+  const assetFetcher = getPagesAssetFetcher({
+    directory: "./public",
+  });
+
+  const response = await assetFetcher.fetch(new Request("https://example.com/index.html"));
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("text/html");
+});
+```
+
+<ParamField path="options" type="PagesAssetOptions" required>
+  <Expandable title="PagesAssetOptions">
+    <ParamField path="directory" type="string" required>
+      Path to static assets directory
+    </ParamField>
+
+    <ParamField path="binding" type="string">
+      Binding name for assets
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="fetcher" type="Fetcher">
+  Fetcher for serving static assets
+</ResponseField>
+
+---
+
+### `readPagesConfig()`
+
+Read and parse a Pages configuration file.
+
+```typescript
+import { readPagesConfig } from "@cloudflare/vitest-pool-workers/config";
+
+const config = await readPagesConfig("./functions/_routes.json");
+console.log(config.routes);
+```
+
+<ParamField path="configPath" type="string" required>
+  Path to Pages config file
+</ParamField>
+
+<ResponseField name="config" type="Promise<PagesConfig>">
+  Parsed Pages configuration
+</ResponseField>
+
+---
+
+## Durable Object Testing
+
+### `createDurableObjectId()`
+
+Create a Durable Object ID for testing.
+
+```typescript
+import { env, createDurableObjectId } from "cloudflare:test";
+import { expect, it } from "vitest";
+
+it("should create DO instances", async () => {
+  const id1 = env.MY_DO.idFromName("test-1");
+  const id2 = env.MY_DO.idFromName("test-2");
+  
+  const stub1 = env.MY_DO.get(id1);
+  const stub2 = env.MY_DO.get(id2);
+  
+  // Each stub represents a different DO instance
+  expect(stub1).not.toBe(stub2);
+});
+```
+
+---
+
+### `resetDurableObjectStorage()`
+
+Reset a Durable Object's storage.
+
+```typescript
+import { env, runInDurableObject } from "cloudflare:test";
+import { it, expect, beforeEach } from "vitest";
+
+let doId;
+
+beforeEach(async () => {
+  doId = env.MY_DO.idFromName("test");
+  
+  await runInDurableObject(env.MY_DO, doId, async (instance, state) => {
+    await state.storage.deleteAll();
+  });
+});
+
+it("should have empty storage", async () => {
+  await runInDurableObject(env.MY_DO, doId, async (instance, state) => {
+    const keys = await state.storage.list();
+    expect(keys.size).toBe(0);
+  });
+});
+```
+
+---
+
+## Queue Testing
+
+### `sendQueueMessage()`
+
+Manually send messages to a queue consumer.
+
+```typescript
+import { env } from "cloudflare:test";
+import worker from "./index";
+
+it("should process queue messages", async () => {
+  const messages = [
+    { id: "1", timestamp: Date.now(), body: { action: "process" } },
+    { id: "2", timestamp: Date.now(), body: { action: "delete" } },
+  ];
+  
+  // Manually trigger queue handler
+  await worker.queue?.({
+    queue: "my-queue",
+    messages,
+    retryAll: () => {},
+    ackAll: () => {},
+  });
+});
+```
+
+---
+
+## Mock Utilities
+
+### Custom Request Mocking
+
+```typescript
+import { fetchMock, SELF } from "cloudflare:test";
+import { it, expect, beforeAll, afterEach } from "vitest";
+
+beforeAll(() => {
+  fetchMock.activate();
+});
+
+afterEach(() => {
+  fetchMock.assertNoPendingInterceptors();
+});
+
+it("should mock API responses", async () => {
+  // Mock with exact match
+  fetchMock
+    .get("https://api.example.com")
+    .intercept({ path: "/users/1", method: "GET" })
+    .reply(200, { id: 1, name: "Alice" });
+
+  // Mock with regex
+  fetchMock
+    .get("https://api.example.com")
+    .intercept({ path: /\/users\/\d+/ })
+    .reply(200, { id: 2, name: "Bob" });
+
+  // Mock with function
+  fetchMock
+    .post("https://api.example.com")
+    .intercept({ path: "/users" })
+    .reply(201, async (opts) => {
+      const body = await opts.body.json();
+      return { ...body, id: 3 };
+    });
+
+  // Mock with headers
+  fetchMock
+    .get("https://api.example.com")
+    .intercept({ path: "/auth", headers: { Authorization: "Bearer token" } })
+    .reply(200, { authenticated: true });
+});
+```
+
+---
+
+### Request Helpers
+
+```typescript
+import { SELF } from "cloudflare:test";
+import { it, expect } from "vitest";
+
+function createRequest(path: string, options?: RequestInit): Request {
+  return new Request(`https://example.com${path}`, options);
+}
+
+function createJsonRequest(path: string, body: unknown): Request {
+  return createRequest(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+it("should handle JSON requests", async () => {
+  const request = createJsonRequest("/api/users", { name: "Alice" });
+  const response = await SELF.fetch(request);
+  expect(response.status).toBe(201);
+});
+```
+
+---
+
+## Time Utilities
+
+### `advanceTime()`
+
+Advance time for testing scheduled events and timers.
+
+```typescript
+import { vi, it, expect } from "vitest";
+
+it("should handle timeouts", async () => {
+  const start = Date.now();
+  
+  vi.useFakeTimers();
+  
+  const promise = new Promise((resolve) => {
+    setTimeout(() => resolve("done"), 1000);
+  });
+  
+  // Advance time by 1 second
+  vi.advanceTimersByTime(1000);
+  
+  const result = await promise;
+  expect(result).toBe("done");
+  
+  vi.useRealTimers();
+});
+```
+
+---
+
+## Environment Utilities
+
+### `setupTestEnvironment()`
+
+Set up a test environment with common bindings.
+
+```typescript
+import { env } from "cloudflare:test";
+import { beforeAll, afterAll } from "vitest";
+
+beforeAll(async () => {
+  // Initialize test data
+  await env.DB.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL
+    );
+  `);
+  
+  await env.MY_KV.put("config", JSON.stringify({
+    apiUrl: "https://api.test.example.com",
+  }));
+});
+
+afterAll(async () => {
+  // Clean up
+  await env.DB.exec("DROP TABLE IF EXISTS users");
+  await env.MY_KV.delete("config");
+});
+```
+
+---
+
+## Assertion Helpers
+
+### Response Assertions
+
+```typescript
+import { expect } from "vitest";
+
+async function expectJsonResponse(
+  response: Response,
+  status: number,
+  body?: unknown
+) {
+  expect(response.status).toBe(status);
+  expect(response.headers.get("content-type")).toContain("application/json");
+  
+  if (body !== undefined) {
+    const json = await response.json();
+    expect(json).toEqual(body);
+  }
+}
+
+async function expectTextResponse(
+  response: Response,
+  status: number,
+  text?: string
+) {
+  expect(response.status).toBe(status);
+  
+  if (text !== undefined) {
+    const content = await response.text();
+    expect(content).toBe(text);
+  }
+}
+
+it("should return JSON", async () => {
+  const response = await SELF.fetch("https://example.com/api/user/1");
+  await expectJsonResponse(response, 200, { id: 1, name: "Alice" });
+});
+```
+
+---
+
+## Complete Testing Example
+
+```typescript
+// worker.test.ts
+import {
+  env,
+  SELF,
+  fetchMock,
+  createExecutionContext,
+  waitOnExecutionContext,
+  runInDurableObject,
+  getQueueResult,
+} from "cloudflare:test";
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
+import worker from "./index";
+
+describe("Complete Worker Test Suite", () => {
+  beforeAll(async () => {
+    // Set up database schema
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL
+      );
+    `);
+    
+    // Activate fetch mocking
+    fetchMock.activate();
+  });
+
+  beforeEach(async () => {
+    // Clean up before each test
+    await env.DB.exec("DELETE FROM users");
+    await env.MY_KV.list().then(({ keys }) =>
+      Promise.all(keys.map((k) => env.MY_KV.delete(k.name)))
+    );
+  });
+
+  afterEach(() => {
+    fetchMock.assertNoPendingInterceptors();
+  });
+
+  it("should create user", async () => {
+    const response = await SELF.fetch("https://example.com/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Alice", email: "alice@example.com" }),
+    });
+
+    expect(response.status).toBe(201);
+    const user = await response.json();
+    expect(user).toMatchObject({ name: "Alice", email: "alice@example.com" });
+
+    // Verify in database
+    const { results } = await env.DB.prepare("SELECT * FROM users").all();
+    expect(results).toHaveLength(1);
+  });
+
+  it("should cache responses", async () => {
+    const key = "cache-key";
+    const value = { data: "cached" };
+
+    await env.MY_KV.put(key, JSON.stringify(value));
+
+    const response = await SELF.fetch(`https://example.com/cached?key=${key}`);
+    expect(await response.json()).toEqual(value);
+  });
+
+  it("should use Durable Objects", async () => {
+    const id = env.COUNTER.idFromName("global");
+
+    // Increment counter
+    await runInDurableObject(env.COUNTER, id, async (instance, state) => {
+      const count = (await state.storage.get("count")) || 0;
+      await state.storage.put("count", count + 1);
+    });
+
+    // Verify count
+    await runInDurableObject(env.COUNTER, id, async (instance, state) => {
+      const count = await state.storage.get("count");
+      expect(count).toBe(1);
+    });
+  });
+
+  it("should send queue messages", async () => {
+    await SELF.fetch("https://example.com/trigger-task");
+
+    const result = await getQueueResult(env.MY_QUEUE);
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].body).toMatchObject({ task: "process" });
+  });
+
+  it("should mock external APIs", async () => {
+    fetchMock
+      .get("https://api.external.com")
+      .intercept({ path: "/data" })
+      .reply(200, { value: 42 });
+
+    const response = await SELF.fetch("https://example.com/external-data");
+    const data = await response.json();
+    expect(data.value).toBe(42);
+  });
+});
+```

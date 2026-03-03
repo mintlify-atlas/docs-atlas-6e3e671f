@@ -1,0 +1,729 @@
+---
+title: Create Cloudflare (C3)
+description: CLI for scaffolding and deploying new Cloudflare applications
+---
+
+Create Cloudflare (C3) is an interactive CLI tool for quickly scaffolding new applications on Cloudflare's developer platform. It provides templates for Workers, Pages, and popular web frameworks with built-in Cloudflare integration.
+
+<Info>
+**Current Version:** 2.64.4
+
+C3 requires Node.js 18.14.1 or higher and supports npm, pnpm, yarn, and bun.
+</Info>
+
+## Quick Start
+
+Create a new project with one command:
+
+```bash
+npm create cloudflare@latest
+```
+
+Or specify a project name:
+
+```bash
+npm create cloudflare@latest my-app
+```
+
+With pnpm:
+
+```bash
+pnpm create cloudflare@latest my-app
+```
+
+With yarn:
+
+```bash
+yarn create cloudflare my-app
+```
+
+With bun:
+
+```bash
+bun create cloudflare my-app
+```
+
+## Interactive Setup
+
+C3 guides you through project creation with an interactive wizard:
+
+1. **Project name** - Choose your application name
+2. **Template selection** - Pick from Workers, Pages, or framework templates
+3. **TypeScript/JavaScript** - Select your preferred language
+4. **Git initialization** - Optionally initialize a Git repository
+5. **Deployment** - Choose to deploy immediately or later
+
+## Template Categories
+
+### Workers Templates
+
+<CardGroup cols={2}>
+  <Card title="Hello World" icon="hand-wave">
+    Basic Worker with fetch handler - perfect starting point
+  </Card>
+  <Card title="Hello World with Assets" icon="images">
+    Worker with static file serving capabilities
+  </Card>
+  <Card title="Durable Objects" icon="database">
+    Worker with Durable Objects for stateful applications
+  </Card>
+  <Card title="Scheduled Worker" icon="clock">
+    Cron-triggered Worker for background tasks
+  </Card>
+  <Card title="Queue Consumer" icon="list">
+    Worker that processes Queue messages
+  </Card>
+  <Card title="Workflows" icon="diagram-project">
+    Worker with Cloudflare Workflows for orchestration
+  </Card>
+  <Card title="OpenAPI" icon="api">
+    OpenAPI-compliant API with validation
+  </Card>
+  <Card title="Hono" icon="fire">
+    Fast web framework built for edge computing
+  </Card>
+</CardGroup>
+
+### Framework Templates
+
+C3 supports popular web frameworks with Cloudflare integration:
+
+#### React Ecosystem
+
+```bash
+npm create cloudflare@latest my-app -- --framework react
+```
+
+Available React-based frameworks:
+- **React** - Create React App with Cloudflare Pages
+- **Next.js** - React framework with SSR and SSG
+- **Remix** - Full-stack React framework
+- **React Router** - Single-page applications with routing
+- **Gatsby** - Static site generator
+- **Redwood** - Full-stack framework for Jamstack
+- **TanStack Start** - Modern React framework
+
+#### Vue Ecosystem
+
+```bash
+npm create cloudflare@latest my-app -- --framework vue
+```
+
+Available Vue-based frameworks:
+- **Vue** - Progressive JavaScript framework
+- **Nuxt** - Vue framework with SSR and SSG
+- **Vike** - Vue + Vite framework
+
+#### Other Frameworks
+
+```bash
+npm create cloudflare@latest my-app -- --framework astro
+```
+
+Supported frameworks:
+- **Astro** - Content-focused web framework
+- **SvelteKit** - Svelte application framework
+- **Solid.js** - Reactive JavaScript library
+- **Qwik** - Resumable framework for instant apps
+- **Angular** - Platform for web applications
+- **Analog** - Full-stack Angular meta-framework
+- **Docusaurus** - Documentation website generator
+- **Waku** - Minimalist React framework
+
+## Command-Line Options
+
+### Non-Interactive Mode
+
+Skip prompts and use defaults:
+
+```bash
+npm create cloudflare@latest my-app -- --yes
+```
+
+### Specify Template
+
+```bash
+npm create cloudflare@latest my-app -- --template hello-world
+```
+
+### Choose Language
+
+```bash
+npm create cloudflare@latest my-app -- --lang typescript
+# or
+npm create cloudflare@latest my-app -- --lang javascript
+```
+
+### Framework Selection
+
+```bash
+npm create cloudflare@latest my-app -- --framework next
+```
+
+### Deployment Options
+
+```bash
+# Deploy immediately after creation
+npm create cloudflare@latest my-app -- --deploy
+
+# Skip deployment
+npm create cloudflare@latest my-app -- --no-deploy
+```
+
+### Git Initialization
+
+```bash
+# Initialize Git repository
+npm create cloudflare@latest my-app -- --git
+
+# Skip Git initialization
+npm create cloudflare@latest my-app -- --no-git
+```
+
+### Complete Example
+
+```bash
+npm create cloudflare@latest my-worker -- \
+  --template hello-world \
+  --lang typescript \
+  --git \
+  --deploy
+```
+
+## Project Templates
+
+### Workers - Hello World
+
+Basic Worker with TypeScript:
+
+```bash
+npm create cloudflare@latest my-worker -- --template hello-world --lang ts
+```
+
+Generated structure:
+```
+my-worker/
+├── src/
+│   └── index.ts
+├── test/
+│   └── index.spec.ts
+├── wrangler.jsonc
+├── package.json
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+Example Worker code:
+```typescript
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    return new Response('Hello World!');
+  },
+};
+```
+
+### Workers - Durable Objects
+
+```bash
+npm create cloudflare@latest my-do -- --template hello-world-durable-object
+```
+
+Includes:
+- Durable Object class definition
+- Worker with DO binding
+- Storage API examples
+- Testing setup
+
+### Workers - Scheduled
+
+Cron-triggered Worker:
+
+```bash
+npm create cloudflare@latest my-cron -- --template scheduled
+```
+
+Example code:
+```typescript
+export default {
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    // Runs on schedule defined in wrangler.jsonc
+    console.log('Cron job executed at', new Date(event.scheduledTime));
+  },
+};
+```
+
+### Workers - Queue Consumer
+
+```bash
+npm create cloudflare@latest my-queue -- --template queues
+```
+
+Includes:
+- Queue producer setup
+- Queue consumer handler
+- Batch processing example
+
+### Workers with Hono
+
+Fast web framework:
+
+```bash
+npm create cloudflare@latest my-api -- --template hono
+```
+
+Example:
+```typescript
+import { Hono } from 'hono';
+
+const app = new Hono();
+
+app.get('/', (c) => c.text('Hello Hono!'));
+app.get('/api/users/:id', (c) => {
+  const id = c.req.param('id');
+  return c.json({ id, name: 'User' });
+});
+
+export default app;
+```
+
+## Framework Integration
+
+### Next.js
+
+```bash
+npm create cloudflare@latest my-next-app -- --framework next
+```
+
+C3 configures:
+- Next.js with Cloudflare Pages adapter
+- Edge runtime for API routes
+- Static asset optimization
+- Environment variables
+
+### Astro
+
+```bash
+npm create cloudflare@latest my-astro -- --framework astro
+```
+
+Includes:
+- Astro with Cloudflare adapter
+- SSR configuration
+- Image optimization
+- Edge middleware
+
+### Remix
+
+```bash
+npm create cloudflare@latest my-remix -- --framework react-router
+```
+
+Configured with:
+- Cloudflare Workers adapter
+- KV/D1 integration
+- Session storage
+- Asset handling
+
+### SvelteKit
+
+```bash
+npm create cloudflare@latest my-svelte -- --framework svelte
+```
+
+Setup includes:
+- Cloudflare adapter
+- Platform-specific types
+- Edge functions
+
+## Pre-existing Projects
+
+Add Cloudflare configuration to existing projects:
+
+```bash
+cd my-existing-project
+npm create cloudflare@latest . -- --template pre-existing
+```
+
+C3 will:
+- Detect your framework
+- Add wrangler.jsonc configuration
+- Install necessary dependencies
+- Configure deployment scripts
+
+## Generated Project Structure
+
+Typical generated structure for a Worker:
+
+```
+my-worker/
+├── src/
+│   ├── index.ts              # Main Worker code
+│   └── index.test.ts         # Unit tests
+├── wrangler.jsonc            # Wrangler configuration
+├── package.json              # Dependencies and scripts
+├── tsconfig.json             # TypeScript configuration
+├── vitest.config.ts          # Vitest testing setup
+├── .gitignore               # Git ignore rules
+└── README.md                # Project documentation
+```
+
+Framework projects include framework-specific structure plus:
+- `wrangler.jsonc` - Cloudflare configuration
+- Modified `package.json` with deploy scripts
+- Platform types and adapters
+
+## Post-Creation Steps
+
+After C3 creates your project:
+
+### 1. Install Dependencies (if not auto-installed)
+
+```bash
+cd my-app
+npm install
+```
+
+### 2. Start Development Server
+
+```bash
+npm run dev
+```
+
+For Workers:
+```bash
+npm run dev  # Runs wrangler dev
+```
+
+For Pages:
+```bash
+npm run pages:dev  # Framework dev + Cloudflare Pages
+```
+
+### 3. Deploy to Cloudflare
+
+```bash
+npm run deploy
+```
+
+For first deployment, you'll be prompted to:
+- Login to Cloudflare
+- Select your account
+- Confirm deployment
+
+## Configuration
+
+### Wrangler Configuration
+
+C3 generates a `wrangler.jsonc` file:
+
+```jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-03-01",
+  "compatibility_flags": ["nodejs_compat"]
+}
+```
+
+### Package Scripts
+
+Generated `package.json` includes:
+
+```json
+{
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest",
+    "cf-typegen": "wrangler types"
+  }
+}
+```
+
+For Pages projects:
+```json
+{
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "wrangler pages dev",
+    "deploy": "wrangler pages deploy"
+  }
+}
+```
+
+## Advanced Features
+
+### Custom Templates
+
+Use a custom template from a Git repository:
+
+```bash
+npm create cloudflare@latest my-app -- --template https://github.com/user/template
+```
+
+### AGENTS.md File
+
+C3 can add an `AGENTS.md` file to help AI coding assistants:
+
+```bash
+npm create cloudflare@latest my-worker -- --agents
+```
+
+This file includes:
+- Project structure documentation
+- Cloudflare-specific guidance
+- API usage patterns
+- Best practices
+
+### Experimental Features
+
+Try experimental autoconfig:
+
+```bash
+npm create cloudflare@latest my-app -- --experimental
+```
+
+Uses `wrangler setup` for automatic configuration.
+
+## Deployment
+
+### Automatic Deployment
+
+C3 can deploy immediately after creation:
+
+```bash
+npm create cloudflare@latest my-worker -- --deploy
+```
+
+Deployment process:
+1. Authenticates with Cloudflare (if needed)
+2. Builds the project
+3. Uploads to Cloudflare
+4. Provides deployment URL
+
+### Manual Deployment
+
+Deploy later with:
+
+```bash
+npm run deploy
+```
+
+### Pages Deployment
+
+For Pages projects:
+
+```bash
+npm run build      # Build static assets
+npm run deploy     # Deploy to Cloudflare Pages
+```
+
+## Testing
+
+C3 sets up testing with Vitest:
+
+```bash
+npm test
+```
+
+Example test:
+```typescript
+import { describe, it, expect } from 'vitest';
+import worker from '../src/index';
+
+describe('Worker', () => {
+  it('responds with Hello World', async () => {
+    const request = new Request('http://localhost/');
+    const env = {};
+    const ctx = { waitUntil: () => {}, passThroughOnException: () => {} };
+    
+    const response = await worker.fetch(request, env, ctx);
+    expect(await response.text()).toBe('Hello World!');
+  });
+});
+```
+
+## Telemetry
+
+C3 collects anonymous usage data to improve the tool.
+
+### Disable Telemetry
+
+```bash
+npm create cloudflare@latest -- telemetry disable
+```
+
+### Enable Telemetry
+
+```bash
+npm create cloudflare@latest -- telemetry enable
+```
+
+### Check Telemetry Status
+
+```bash
+npm create cloudflare@latest -- telemetry status
+```
+
+## Common Workflows
+
+### Create and Deploy a Worker
+
+```bash
+# Create project
+npm create cloudflare@latest my-worker -- \
+  --template hello-world \
+  --lang typescript \
+  --git
+
+# Navigate to project
+cd my-worker
+
+# Test locally
+npm run dev
+
+# Deploy to production
+npm run deploy
+```
+
+### Create a Full-Stack App
+
+```bash
+# Create Next.js app with Cloudflare
+npm create cloudflare@latest my-app -- --framework next
+
+cd my-app
+
+# Develop locally
+npm run dev
+
+# Build and deploy
+npm run build
+npm run deploy
+```
+
+### Add to Existing Project
+
+```bash
+cd my-existing-project
+
+# Add Cloudflare configuration
+npm create cloudflare@latest . -- --template pre-existing
+
+# Deploy
+npm run deploy
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choose the Right Template">
+    - **Workers**: For APIs, middleware, and edge logic
+    - **Pages**: For static sites and full-stack frameworks
+    - **Durable Objects**: For stateful applications
+    - **Scheduled**: For cron jobs and background tasks
+  </Accordion>
+
+  <Accordion title="Use TypeScript">
+    TypeScript provides better IDE support and catches errors:
+    
+    ```bash
+    npm create cloudflare@latest my-app -- --lang typescript
+    ```
+  </Accordion>
+
+  <Accordion title="Test Locally First">
+    Always test with `wrangler dev` before deploying:
+    
+    ```bash
+    npm run dev  # Test locally
+    npm run deploy  # Deploy when ready
+    ```
+  </Accordion>
+
+  <Accordion title="Version Control">
+    Initialize Git to track changes:
+    
+    ```bash
+    npm create cloudflare@latest my-app -- --git
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Node Version Issues
+
+Ensure you're using Node.js 18.14.1 or higher:
+
+```bash
+node --version
+```
+
+### Package Manager Detection
+
+C3 auto-detects your package manager. To force a specific one:
+
+```bash
+# Use npm explicitly
+npm create cloudflare@latest my-app
+
+# Use pnpm
+pnpm create cloudflare@latest my-app
+```
+
+### Permission Errors
+
+If you encounter permission errors during deployment:
+
+```bash
+# Login to Cloudflare
+npx wrangler login
+
+# Then deploy
+npm run deploy
+```
+
+### Template Not Found
+
+List available templates:
+
+```bash
+npm create cloudflare@latest my-app
+# Interactive menu shows all templates
+```
+
+## Comparison with Other Tools
+
+| Feature | C3 | Wrangler Init | Manual Setup |
+|---------|----|--------------|--------------|
+| **Interactive** | ✅ Yes | ✅ Yes | ❌ No |
+| **Framework Support** | ✅ 20+ frameworks | ❌ Workers only | ⚠️ Manual |
+| **Auto-deployment** | ✅ Optional | ❌ No | ❌ No |
+| **Git Setup** | ✅ Optional | ❌ No | ⚠️ Manual |
+| **Testing Setup** | ✅ Included | ✅ Included | ⚠️ Manual |
+| **Best For** | New projects | Workers only | Custom setups |
+
+<Tip>
+Use **C3** for new projects and framework integrations. Use **Wrangler** for ongoing development.
+</Tip>
+
+## Additional Resources
+
+- [C3 Documentation](https://developers.cloudflare.com/pages/get-started/c3)
+- [GitHub Repository](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare)
+- [Template Gallery](https://developers.cloudflare.com/workers/examples/)
+- [Framework Guides](https://developers.cloudflare.com/pages/framework-guides/)
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Wrangler" href="/core-tools/wrangler">
+    CLI for Workers development and deployment
+  </Card>
+  <Card title="Miniflare" href="/core-tools/miniflare">
+    Local Workers simulator for testing
+  </Card>
+</CardGroup>

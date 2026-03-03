@@ -1,0 +1,386 @@
+---
+title: "Rollback Deployments"
+description: "Roll back to previous Worker versions safely"
+---
+
+## Overview
+
+Rollbacks allow you to quickly revert to a previous stable version of your Worker. When issues arise in production, rollback provides a fast recovery path.
+
+## Quick Rollback
+
+Roll back to the most recent stable deployment:
+
+```bash
+wrangler versions rollback
+```
+
+This automatically selects the last deployment that was at 100% traffic.
+
+## Rollback to Specific Version
+
+Roll back to a specific version by ID:
+
+```bash
+wrangler versions rollback <version-id>
+```
+
+### With Custom Message
+
+```bash
+wrangler versions rollback <version-id> \
+  --message "Rollback due to increased error rate"
+```
+
+## Interactive Rollback Process
+
+When you run a rollback command, you'll see:
+
+<Steps>
+  <Step title="Current deployment">
+    View the currently active deployment:
+    
+    ```bash
+    ✓ Your current deployment has 2 version(s):
+    
+    (80%) a1b2c3d4-e5f6-7890-abcd-ef1234567890
+      Created:  2024-01-15T10:30:00.000Z
+      Tag:      v1.2.0
+      Message:  New feature rollout
+    
+    (20%) b2c3d4e5-f6a7-8901-bcde-f12345678901
+      Created:  2024-01-14T15:20:00.000Z
+      Tag:      v1.1.0
+      Message:  Stable version
+    ```
+  </Step>
+
+  <Step title="Rollback target">
+    The system identifies the rollback version:
+    
+    ```bash
+    ⚠ You are about to rollback to Worker Version b2c3d4e5-f6a7-8901-bcde-f12345678901.
+    This will immediately replace the current deployment and become 
+    the active deployment across all your deployed triggers.
+    However, your local development environment will not be affected.
+    Rolling back will not rollback any of the bound resources 
+    (Durable Object, D1, R2, KV, etc).
+    ```
+  </Step>
+
+  <Step title="Confirmation">
+    Confirm the rollback:
+    
+    ```bash
+    ? Are you sure you want to deploy this Worker Version to 100% of traffic? (Y/n)
+    ```
+  </Step>
+
+  <Step title="Complete">
+    Rollback completes:
+    
+    ```bash
+    ✅ Worker Version b2c3d4e5-f6a7-8901-bcde-f12345678901 has been deployed to 100% of traffic.
+    
+    Current Version ID: b2c3d4e5-f6a7-8901-bcde-f12345678901
+    ```
+  </Step>
+</Steps>
+
+## Automatic Rollback Target
+
+When no version is specified, the rollback command finds the default target:
+
+```typescript
+// From versions/rollback/index.ts:151-183
+async function fetchDefaultRollbackVersionId(
+  config: Config,
+  accountId: string,
+  workerName: string
+): Promise<VersionId> {
+  const deployments = await fetchLatestDeployments(
+    config,
+    accountId,
+    workerName
+  );
+
+  // sort by latest first
+  deployments.sort((a, b) => b.created_on.localeCompare(a.created_on));
+
+  // we don't want to rollback to the current deployment
+  deployments.shift();
+
+  for (const deployment of deployments) {
+    // we define a stable version as one deployed to 100%
+    const stableVersion = deployment.versions.find(
+      ({ percentage }) => percentage === 100
+    );
+
+    if (stableVersion) {
+      return stableVersion.version_id;
+    }
+  }
+
+  throw new Error(
+    "Could not find stable Worker Version to rollback to."
+  );
+}
+```
+
+The system:
+1. Fetches recent deployments
+2. Sorts by creation date (newest first)
+3. Skips the current deployment
+4. Finds the first deployment at 100% traffic
+
+## Rollback with Secret Changes
+
+If secrets have changed since the target version was deployed, you'll see an additional confirmation:
+
+```bash
+⚠ The following secrets have changed since version b2c3d4e5 was deployed.
+Please confirm you wish to continue with the rollback:
+  * API_KEY
+  * DATABASE_URL
+
+? Do you wish to continue? (y/N)
+```
+
+### Secret Rollback Behavior
+
+<Warning>
+Rolling back does NOT revert secret values. The current secret values remain active even after rollback.
+</Warning>
+
+When secrets have changed:
+
+```typescript
+// From versions/rollback/index.ts:106-141
+if (
+  e instanceof APIError &&
+  e.code === CANNOT_ROLLBACK_WITH_MODIFIED_SECERT_CODE
+) {
+  const errorMsg = e.notes[0].text.replace(
+    ` [code: ${CANNOT_ROLLBACK_WITH_MODIFIED_SECERT_CODE}]`,
+    ""
+  );
+  const targetString = "The following secrets have changed:";
+  const changedSecrets = errorMsg
+    .substring(errorMsg.indexOf(targetString) + targetString.length + 1)
+    .split(", ");
+
+  const secretConfirmation = await confirm(
+    `The following secrets have changed since version ${versionId} was deployed. ` +
+    `Please confirm you wish to continue with the rollback\n` +
+    changedSecrets.map((secret) => `  * ${secret}`).join("\n")
+  );
+
+  if (secretConfirmation) {
+    await createDeployment(
+      config,
+      accountId,
+      workerName,
+      rollbackTraffic,
+      message,
+      true  // force=true
+    );
+  }
+}
+```
+
+## Rollback Scope
+
+### What Gets Rolled Back
+
+✅ **Included in rollback:**
+- Worker code
+- Compatibility settings
+- Binding configurations
+- Environment variables
+
+❌ **NOT included in rollback:**
+- Secret values (current values persist)
+- Bound resources (KV data, R2 objects, D1 tables)
+- Durable Object state
+- Routes and triggers
+- Custom domains
+
+### Resource Data Persistence
+
+<Warning>
+Rollback only reverts Worker code and configuration. Data in KV namespaces, R2 buckets, D1 databases, and Durable Objects is NOT rolled back.
+</Warning>
+
+For example:
+- If your new version wrote data to KV, that data remains after rollback
+- If your new version created D1 tables, those tables persist
+- Durable Object instances maintain their state
+
+## Legacy Rollback (Deployments)
+
+For non-versioned Workers, use the legacy rollback command:
+
+```bash
+wrangler rollback [deployment-id]
+```
+
+### Legacy Rollback Process
+
+The legacy system works with deployments instead of versions:
+
+```typescript
+// From deployments.ts:146-230
+export async function rollbackDeployment(
+  complianceConfig: ComplianceConfig,
+  accountId: string,
+  scriptName: string | undefined,
+  { send_metrics: sendMetrics },
+  deploymentId: string | undefined,
+  message: string | undefined
+) {
+  if (deploymentId === undefined) {
+    // Fetch the second-to-last deployment
+    const { items: deploys } = await fetchResult(
+      complianceConfig,
+      `/accounts/${accountId}/workers/deployments/by-script/${scriptTag}`,
+      undefined,
+      params
+    );
+
+    if (deploys.length < 2) {
+      throw new UserError(
+        "Cannot rollback to previous deployment since there are less than 2 deployments"
+      );
+    }
+
+    deploymentId = deploys.at(-2)?.id;
+  }
+
+  // Confirm with user
+  if (!await confirm(`This deployment will immediately replace the current deployment...`)) {
+    return;
+  }
+
+  // Perform rollback
+  await rollbackRequest(config, accountId, scriptName, deploymentId, message);
+}
+```
+
+## Non-Interactive Rollback
+
+Skip confirmations in CI/CD:
+
+```bash
+wrangler versions rollback <version-id> \
+  --message "Automated rollback" \
+  --yes
+```
+
+The `--yes` flag:
+- Accepts all confirmations automatically
+- Useful for automated deployments
+- Still validates the rollback target
+
+## Rollback Annotations
+
+Rollbacks create a new deployment with special annotations:
+
+```typescript
+// Rollback creates a deployment with metadata
+annotations: {
+  "workers/triggered_by": "rollback",
+  "workers/rollback_from": "<previous-version-id>",
+  "workers/message": "<rollback-message>"
+}
+```
+
+This creates an audit trail showing:
+- The deployment was a rollback
+- Which version was rolled back from
+- Why the rollback occurred
+
+## Rollback Best Practices
+
+1. **Monitor Deployments** - Watch metrics to detect issues early
+2. **Keep Stable Versions** - Maintain known-good versions for rollback
+3. **Document Rollbacks** - Use `--message` to explain why
+4. **Test After Rollback** - Verify the rollback resolved the issue
+5. **Plan Forward** - Fix issues and deploy forward, don't stay on old versions
+
+## Rollback vs. Deploy Previous Version
+
+Two ways to revert:
+
+### Option 1: Rollback Command
+
+```bash
+wrangler versions rollback
+```
+
+- ✅ Automatic target selection
+- ✅ Built-in confirmations
+- ✅ Rollback annotations
+- ❌ Only deploys to 100%
+
+### Option 2: Manual Deploy
+
+```bash
+wrangler versions deploy <old-version>@100
+```
+
+- ✅ More control over process
+- ✅ Can split traffic if desired
+- ❌ Manual version selection
+- ❌ No rollback annotations
+
+## Troubleshooting
+
+### "No stable version found"
+
+If all recent deployments used traffic splitting:
+
+```bash
+❌ Could not find stable Worker Version to rollback to. 
+   Please try again with an explicit Version ID.
+```
+
+**Solution:** Specify the version ID:
+
+```bash
+wrangler versions rollback <version-id>
+```
+
+### "Less than 2 deployments"
+
+For new Workers:
+
+```bash
+❌ Cannot rollback to previous deployment since there are less than 2 deployments
+```
+
+**Solution:** You need at least 2 deployments to rollback. Deploy your first version, then make a second deployment before rollback is available.
+
+### Secret Changes Blocking Rollback
+
+If you don't want to confirm secret changes:
+
+**Solution:** Update secrets first, then rollback:
+
+```bash
+wrangler versions secret put API_KEY
+wrangler versions rollback <version-id>
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deploying" icon="rocket" href="/deployment/deploying">
+    Learn about deployment strategies
+  </Card>
+  <Card title="Version Management" icon="code-branch" href="/deployment/versioning">
+    View and manage versions
+  </Card>
+  <Card title="Secrets" icon="key" href="/deployment/secrets">
+    Manage Worker secrets
+  </Card>
+</CardGroup>

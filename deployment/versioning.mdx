@@ -1,0 +1,338 @@
+---
+title: "Version Management"
+description: "List, view, and manage Worker versions"
+---
+
+## Overview
+
+Worker versions allow you to maintain multiple versions of your code and control which version serves traffic. Each version is immutable and contains:
+
+- Worker code and modules
+- Compatibility settings
+- Bindings and configuration
+- Secrets
+- Metadata (tag, message, author)
+
+## Listing Versions
+
+View the 10 most recent versions of your Worker:
+
+```bash
+wrangler versions list
+```
+
+### Output Format
+
+```bash
+Version ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+Created:    2024-01-15T10:30:00.000Z
+Author:     user@example.com
+Source:     Wrangler 🤠
+Tag:        v1.2.0
+Message:    Added new feature X
+
+Version ID: b2c3d4e5-f6a7-8901-bcde-f12345678901
+Created:    2024-01-14T15:20:00.000Z
+Author:     user@example.com
+Source:     Dashboard 🖥️
+Tag:        v1.1.0
+Message:    Bug fixes
+```
+
+### JSON Output
+
+Get structured version data:
+
+```bash
+wrangler versions list --json
+```
+
+```json
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "metadata": {
+      "created_on": "2024-01-15T10:30:00.000Z",
+      "author_email": "user@example.com",
+      "source": "wrangler"
+    },
+    "annotations": {
+      "workers/tag": "v1.2.0",
+      "workers/message": "Added new feature X"
+    },
+    "resources": {
+      "script": {
+        "handlers": ["fetch"]
+      },
+      "bindings": [...],
+      "script_runtime": {
+        "compatibility_date": "2024-01-01",
+        "compatibility_flags": ["nodejs_compat"],
+        "usage_model": "bundled"
+      }
+    }
+  }
+]
+```
+
+## Viewing Version Details
+
+Inspect a specific version:
+
+```bash
+wrangler versions view <version-id>
+```
+
+### Example Output
+
+```bash
+Version ID:          a1b2c3d4-e5f6-7890-abcd-ef1234567890
+Created:             2024-01-15T10:30:00.000Z
+Author:              user@example.com
+Source:              Wrangler 🤠
+Tag:                 v1.2.0
+Message:             Added new feature X
+
+Handlers:            fetch
+Compatibility Date:  2024-01-01
+Compatibility Flags: nodejs_compat
+
+Secrets:
+  Secret Name: API_KEY
+  Secret Name: DATABASE_URL
+
+╭ Bindings ───────────────────────────────────╮
+│ KV Namespaces:                              │
+│  - MY_KV: 1234567890abcdef                  │
+│                                             │
+│ R2 Buckets:                                 │
+│  - MY_BUCKET: my-r2-bucket                  │
+│                                             │
+│ D1 Databases:                               │
+│  - DB: my-database (a1b2c3d4)               │
+╰─────────────────────────────────────────────╯
+```
+
+### JSON Format
+
+```bash
+wrangler versions view <version-id> --json
+```
+
+## Version Metadata
+
+### Version Source
+
+Versions track their creation source:
+
+```typescript
+// From versions/list.ts:92-118
+function formatSource(source: string): string {
+  switch (source) {
+    case "api":
+      return "API 📡";
+    case "dash":
+      return "Dashboard 🖥️";
+    case "wrangler":
+      return "Wrangler 🤠";
+    case "terraform":
+      return "Terraform 🏗️";
+    default:
+      return `Other (${source})`;
+  }
+}
+```
+
+### Triggered By
+
+Versions may also track what triggered their creation:
+
+- `upload` - Direct version upload
+- `secret` - Secret change
+- `rollback` - Rollback operation
+- `promotion` - Promoted from another environment
+
+## Deployments
+
+View deployment history to see which versions are currently deployed:
+
+```bash
+wrangler deployments list
+```
+
+### Deployment Output
+
+```bash
+Version ID:    b2c3d4e5-f6a7-8901-bcde-f12345678901
+Created on:    2024-01-14T15:20:00.000Z
+Author:        user@example.com
+Source:        Wrangler 🤠
+
+Version ID:    a1b2c3d4-e5f6-7890-abcd-ef1234567890
+Created on:    2024-01-15T10:30:00.000Z
+Author:        user@example.com
+Source:        Upload from Wrangler 🤠
+Message:       Initial gradual rollout
+🟩 Active
+```
+
+The most recent deployment is marked as 🟩 Active.
+
+## View Specific Deployment
+
+Get details about a deployment:
+
+```bash
+wrangler deployments view <deployment-id>
+```
+
+### Deployment Details
+
+```bash
+Version ID:          a1b2c3d4-e5f6-7890-abcd-ef1234567890
+Created on:          2024-01-15T10:30:00.000Z
+Author:              user@example.com
+Source:              Upload from Wrangler 🤠
+Message:             Gradual rollout to 25%
+------------------------------------------------------------
+Author ID:           abc123def456
+Usage Model:         bundled
+Handlers:            fetch
+Compatibility Date:  2024-01-01
+Compatibility Flags: nodejs_compat
+--------------------------bindings--------------------------
+[[kv_namespaces]]
+binding = "MY_KV"
+id = "1234567890abcdef"
+
+[[r2_buckets]]
+binding = "MY_BUCKET"
+bucket_name = "my-r2-bucket"
+```
+
+## Version Lifecycle
+
+<Steps>
+  <Step title="Upload">
+    Create a new version:
+    ```bash
+    wrangler versions upload --tag "v1.0" --message "Initial version"
+    ```
+  </Step>
+
+  <Step title="Preview">
+    Test the version at its preview URL before deploying.
+  </Step>
+
+  <Step title="Deploy">
+    Deploy the version to production traffic:
+    ```bash
+    wrangler versions deploy
+    ```
+  </Step>
+
+  <Step title="Monitor">
+    Watch metrics and logs to verify the deployment.
+  </Step>
+
+  <Step title="Iterate">
+    Upload new versions or rollback if needed.
+  </Step>
+</Steps>
+
+## Version Immutability
+
+<Warning>
+Versions are immutable once created. You cannot modify a version's code or configuration. To make changes, upload a new version.
+</Warning>
+
+Immutability ensures:
+- **Reproducibility** - The same version always behaves identically
+- **Safe Rollbacks** - Roll back to known-good versions with confidence
+- **Audit Trail** - Complete history of all changes
+
+## Deployable Versions
+
+Only the 10 most recent versions are "deployable" - available for traffic splitting:
+
+```typescript
+// From versions/api.ts:112-130
+export async function fetchDeployableVersions(
+  complianceConfig: ComplianceConfig,
+  accountId: string,
+  workerName: string,
+  versionCache: VersionCache
+): Promise<ApiVersion[]> {
+  const { items: versions } = await fetchResult<{
+    items: ApiVersion[];
+  }>(
+    complianceConfig,
+    `/accounts/${accountId}/workers/scripts/${workerName}/versions?deployable=true`
+  );
+
+  for (const version of versions) {
+    versionCache.set(version.id, version);
+  }
+
+  return versions;
+}
+```
+
+Older versions remain in history but cannot be deployed directly.
+
+## Filtering Versions
+
+The versions list is sorted by creation date (most recent first):
+
+```typescript
+// From versions/deploy.ts:384-386  
+const selectableVersions = Array.from(versionCache.values()).sort(
+  (a, b) => b.metadata.created_on.localeCompare(a.metadata.created_on)
+);
+```
+
+## Version Annotations
+
+Versions support optional annotations:
+
+- `workers/tag` - User-defined tag (e.g., "v1.2.0")
+- `workers/message` - Deployment message
+- `workers/triggered_by` - What triggered the version
+- `workers/rollback_from` - Source version for rollbacks
+
+### Setting Annotations
+
+```bash
+wrangler versions upload \
+  --tag "production-v2.0" \
+  --message "Major release with breaking changes"
+```
+
+## Version Limits
+
+- Maximum 10 deployable versions
+- Maximum 2 versions in a single deployment (traffic split)
+- Unlimited version history retention
+
+<Warning>
+Currently, you can deploy at most 2 versions simultaneously. This limitation may be lifted in future releases.
+</Warning>
+
+## Best Practices
+
+1. **Use Semantic Versioning** - Tag versions like `v1.2.3`
+2. **Write Descriptive Messages** - Explain what changed
+3. **Keep Recent Versions** - Maintain deployable rollback options
+4. **Monitor Deployments** - Track which versions serve traffic
+5. **Document Changes** - Use messages to create an audit trail
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deploying" icon="rocket" href="/deployment/deploying">
+    Deploy versions to production
+  </Card>
+  <Card title="Rollbacks" icon="rotate-left" href="/deployment/rollbacks">
+    Roll back to previous versions
+  </Card>
+</CardGroup>

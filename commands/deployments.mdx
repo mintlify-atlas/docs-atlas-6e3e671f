@@ -1,0 +1,393 @@
+---
+title: "wrangler deployments"
+description: "List and view the current and past deployments for your Worker"
+---
+
+The `wrangler deployments` commands allow you to view deployment history for Workers using Gradual Rollouts. A deployment represents a specific traffic split configuration across one or more Worker Versions.
+
+## Subcommands
+
+- [`wrangler deployments list`](#list) - Display the 10 most recent deployments
+- [`wrangler deployments status`](#status) - View the current production state
+- [`wrangler deployments view`](#view) - Deprecated, redirects to other commands
+
+<Note>
+Deployments are created when you run `wrangler versions deploy` or `wrangler rollback`. Each deployment tracks which versions are receiving traffic and at what percentages.
+</Note>
+
+## list
+
+Display the 10 most recent deployments of your Worker, showing the history of how traffic has been distributed across versions over time.
+
+```bash
+wrangler deployments list [OPTIONS]
+```
+
+### Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker. Can also be specified in your configuration file.
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Display output as clean JSON format instead of formatted text.
+</ParamField>
+
+### Example
+
+```bash
+# List deployments for the current Worker
+wrangler deployments list
+
+# List deployments for a specific Worker
+wrangler deployments list --name my-worker
+
+# Get JSON output
+wrangler deployments list --json
+```
+
+### Output
+
+For each deployment, displays:
+
+- **Created** - When the deployment was created (ISO timestamp)
+- **Author** - Email of the user who created the deployment
+- **Source** - How the deployment was created:
+  - `Wrangler 🤠` - Created via Wrangler CLI
+  - `Dashboard 🖥️` - Created via Cloudflare Dashboard
+  - `API 📡` - Created via Cloudflare API
+  - `Terraform 🏗️` - Created via Terraform
+  - `Rollback` - Created via `wrangler rollback`
+  - `Upload`, `Secret Change`, `Promotion` - Triggered by specific actions
+- **Message** - Optional deployment message (if provided)
+- **Version(s)** - List of versions in the deployment with their traffic percentages
+
+For each version within a deployment:
+- Traffic percentage
+- Version ID
+- Created timestamp
+- Tag annotation
+- Message annotation
+
+### Example Output
+
+```
+Created:     2024-03-03T14:30:00.000Z
+Author:      user@example.com
+Source:      Wrangler 🤠
+Message:     Gradual rollout of new API
+Version(s):  (90%) 10000000-0000-0000-0000-000000000000
+                 Created:  2024-03-03T10:00:00.000Z
+                     Tag:  v2.1.0
+                 Message:  New API endpoints
+
+             (10%) 20000000-0000-0000-0000-000000000000
+                 Created:  2024-03-03T14:00:00.000Z
+                     Tag:  v2.2.0
+                 Message:  Performance improvements
+
+Created:     2024-03-02T09:15:00.000Z
+Author:      user@example.com
+Source:      Wrangler 🤠
+Message:     Initial deployment
+Version(s):  (100%) 10000000-0000-0000-0000-000000000000
+                 Created:  2024-03-03T10:00:00.000Z
+                     Tag:  v2.1.0
+                 Message:  New API endpoints
+```
+
+## status
+
+View the current state of your production deployment, showing which versions are currently receiving traffic.
+
+```bash
+wrangler deployments status [OPTIONS]
+```
+
+### Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker. Can also be specified in your configuration file.
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Display output as clean JSON format instead of formatted text.
+</ParamField>
+
+### Example
+
+```bash
+# View current deployment status
+wrangler deployments status
+
+# View status for a specific Worker
+wrangler deployments status --name my-worker
+
+# Get JSON output
+wrangler deployments status --json
+```
+
+### Output
+
+Displays the current (most recent) deployment with:
+
+- **Created** - When this deployment was created
+- **Author** - Who created this deployment
+- **Source** - How this deployment was created
+- **Message** - Optional deployment message
+- **Version(s)** - Current versions and their traffic distribution
+
+For each active version:
+- Traffic percentage
+- Version ID
+- Created timestamp
+- Tag and message annotations
+
+### Example Output
+
+```
+Created:     2024-03-03T14:30:00.000Z
+Author:      user@example.com
+Source:      Wrangler 🤠
+Message:     Production release
+Version(s):  (100%) 10000000-0000-0000-0000-000000000000
+                 Created:  2024-03-03T10:00:00.000Z
+                     Tag:  v2.1.0
+                 Message:  New API endpoints
+```
+
+### Use Cases
+
+<AccordionGroup>
+  <Accordion title="Check current traffic split">
+    Before deploying a new version, use `status` to see your current deployment state:
+    ```bash
+    wrangler deployments status
+    ```
+    This helps you understand the baseline before making changes.
+  </Accordion>
+  
+  <Accordion title="Verify deployment success">
+    After running `wrangler versions deploy`, confirm the deployment:
+    ```bash
+    wrangler versions deploy new-version@50 old-version@50
+    wrangler deployments status
+    ```
+  </Accordion>
+  
+  <Accordion title="Monitor rollout progress">
+    During a gradual rollout, check status between percentage increases:
+    ```bash
+    # Deploy at 10%
+    wrangler versions deploy new@10 old@90
+    # Check metrics, then increase
+    wrangler deployments status
+    wrangler versions deploy new@50 old@50
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## view
+
+The `deployments view` command has been deprecated and renamed.
+
+```bash
+# Old command (deprecated)
+wrangler deployments view
+
+# New command
+wrangler deployments status
+```
+
+```bash
+# Old command (deprecated)
+wrangler deployments view <deployment-id>
+
+# New command
+wrangler versions view <version-id>
+```
+
+<Warning>
+If you try to use `wrangler deployments view`, you'll receive an error message directing you to the correct command.
+</Warning>
+
+## Understanding Deployments
+
+### Deployment vs. Version
+
+- **Version**: A snapshot of your Worker code, configuration, and bindings. Created with `wrangler versions upload`.
+- **Deployment**: A traffic routing configuration that specifies which versions receive what percentage of requests. Created with `wrangler versions deploy`.
+
+A single deployment can route traffic to multiple versions simultaneously, enabling gradual rollouts and A/B testing.
+
+### Deployment Sources
+
+Deployments can be created through multiple sources:
+
+| Source | Description | Triggered By |
+|--------|-------------|-------------|
+| **Wrangler** | CLI deployments | `wrangler versions deploy` |
+| **Dashboard** | Web UI deployments | Cloudflare Dashboard |
+| **API** | Direct API calls | Cloudflare API |
+| **Terraform** | Infrastructure as code | Terraform provider |
+| **Rollback** | Rollback operations | `wrangler rollback` |
+| **Upload** | Automatic deployment | Some upload operations |
+| **Secret Change** | Secret modifications | Secret updates that trigger deployment |
+
+### Deployment Lifecycle
+
+<Steps>
+  <Step title="Upload versions">
+    Create one or more versions using `wrangler versions upload`.
+  </Step>
+  <Step title="Create deployment">
+    Deploy versions with traffic distribution using `wrangler versions deploy`.
+  </Step>
+  <Step title="Monitor">
+    Track metrics for each version to ensure stability.
+  </Step>
+  <Step title="Adjust traffic">
+    Gradually shift traffic percentages with new deployments.
+  </Step>
+  <Step title="Complete rollout">
+    Deploy the new version to 100% of traffic once validated.
+  </Step>
+</Steps>
+
+## JSON Output Format
+
+When using `--json`, the output follows this structure:
+
+```json
+[
+  {
+    "id": "deployment-id",
+    "source": "wrangler",
+    "created_on": "2024-03-03T14:30:00.000Z",
+    "author_email": "user@example.com",
+    "annotations": {
+      "workers/message": "Deployment message",
+      "workers/triggered_by": "upload"
+    },
+    "versions": [
+      {
+        "version_id": "10000000-0000-0000-0000-000000000000",
+        "percentage": 100
+      }
+    ]
+  }
+]
+```
+
+This format is useful for:
+- Automation and scripting
+- Integration with monitoring tools
+- Programmatic deployment verification
+- Building custom dashboards
+
+## Related Commands
+
+- [`wrangler versions deploy`](/commands/versions#deploy) - Create a new deployment
+- [`wrangler versions list`](/commands/versions#list) - List available versions
+- [`wrangler rollback`](/commands/rollback) - Rollback to a previous version
+- [`wrangler versions view`](/commands/versions#view) - View version details
+
+## Common Workflows
+
+### Viewing Deployment History
+
+```bash
+# See recent deployment history
+wrangler deployments list
+
+# Check what's currently deployed
+wrangler deployments status
+
+# Review specific version details
+wrangler versions view <version-id>
+```
+
+### Debugging Deployment Issues
+
+<Steps>
+  <Step title="Check current state">
+    ```bash
+    wrangler deployments status
+    ```
+  </Step>
+  <Step title="Review deployment history">
+    ```bash
+    wrangler deployments list
+    ```
+  </Step>
+  <Step title="Examine version details">
+    ```bash
+    wrangler versions view <version-id>
+    ```
+  </Step>
+  <Step title="Rollback if needed">
+    ```bash
+    wrangler rollback <version-id>
+    ```
+  </Step>
+</Steps>
+
+### Monitoring a Gradual Rollout
+
+```bash
+# 1. Deploy new version at 10%
+wrangler versions deploy new@10 old@90
+
+# 2. Check status
+wrangler deployments status
+
+# 3. Monitor metrics externally
+# ... check error rates, latency, etc.
+
+# 4. Increase to 50% if stable
+wrangler versions deploy new@50 old@50
+wrangler deployments status
+
+# 5. Complete rollout
+wrangler versions deploy new@100
+wrangler deployments status
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use deployment messages">
+    Always add meaningful messages to your deployments:
+    ```bash
+    wrangler versions deploy new@100 --message "Fix for authentication bug"
+    ```
+    This helps track changes when reviewing `deployments list`.
+  </Accordion>
+  
+  <Accordion title="Check status before and after changes">
+    Verify the current state before deploying:
+    ```bash
+    # Before
+    wrangler deployments status
+    # Deploy
+    wrangler versions deploy new@50 old@50
+    # After
+    wrangler deployments status
+    ```
+  </Accordion>
+  
+  <Accordion title="Use JSON output for automation">
+    Parse JSON output in scripts for programmatic deployment verification:
+    ```bash
+    STATUS=$(wrangler deployments status --json)
+    # Parse and validate the deployment state
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep deployment history for auditing">
+    The deployment list provides an audit trail. Use it to:
+    - Track who deployed what and when
+    - Understand deployment patterns
+    - Debug issues by correlating deployments with incidents
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,673 @@
+---
+title: Testing
+description: Test Workers with vitest-pool-workers
+---
+
+Test your Workers using `@cloudflare/vitest-pool-workers`, which runs tests inside the actual workerd runtime for accurate results.
+
+## Why vitest-pool-workers?
+
+Traditional testing frameworks run in Node.js, which has different APIs and behaviors than the Workers runtime. `vitest-pool-workers` runs your tests in the same workerd runtime as production, ensuring:
+
+- **Accurate testing** - Tests run in the actual Workers environment
+- **Real bindings** - Test with actual KV, R2, D1, Durable Objects implementations
+- **Fast execution** - Tests run directly in workerd without network overhead
+- **Type safety** - Full TypeScript support with runtime types
+
+## Installation
+
+```bash
+npm install -D vitest @cloudflare/vitest-pool-workers
+```
+
+## Quick Start
+
+<Steps>
+  <Step title="Create vitest.config.ts">
+    ```typescript vitest.config.ts
+    import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+    export default defineWorkersConfig({
+      test: {
+        poolOptions: {
+          workers: {
+            wrangler: { configPath: "./wrangler.json" },
+          },
+        },
+      },
+    });
+    ```
+  </Step>
+
+  <Step title="Write your Worker">
+    ```typescript src/index.ts
+    export default {
+      async fetch(request: Request, env: Env): Promise<Response> {
+        const count = await env.KV.get("count") || "0";
+        const newCount = parseInt(count) + 1;
+        await env.KV.put("count", newCount.toString());
+        return new Response(`Count: ${newCount}`);
+      },
+    };
+    ```
+  </Step>
+
+  <Step title="Write tests">
+    ```typescript src/index.test.ts
+    import { env, SELF } from "cloudflare:test";
+    import { describe, it, expect } from "vitest";
+
+    describe("Counter Worker", () => {
+      it("increments count", async () => {
+        const response = await SELF.fetch("http://example.com");
+        expect(await response.text()).toBe("Count: 1");
+      });
+
+      it("persists across requests", async () => {
+        await SELF.fetch("http://example.com");
+        const response = await SELF.fetch("http://example.com");
+        expect(await response.text()).toBe("Count: 2");
+      });
+    });
+    ```
+  </Step>
+
+  <Step title="Run tests">
+    ```bash
+    npx vitest
+    ```
+  </Step>
+</Steps>
+
+## Configuration
+
+### Basic Configuration
+
+```typescript vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: {
+          configPath: "./wrangler.json",
+        },
+      },
+    },
+  },
+});
+```
+
+### With Miniflare Options
+
+```typescript vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        singleWorker: true,
+        wrangler: {
+          configPath: "./wrangler.json",
+        },
+        miniflare: {
+          compatibilityFlags: ["nodejs_compat"],
+          bindings: {
+            TEST_MODE: "true",
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+### Multiple Workers
+
+```typescript vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        main: "./src/index.ts",
+        miniflare: {
+          workers: [
+            {
+              name: "main-worker",
+              modules: true,
+              scriptPath: "./src/index.ts",
+            },
+            {
+              name: "auth-worker",
+              modules: true,
+              scriptPath: "./src/auth.ts",
+            },
+          ],
+        },
+      },
+    },
+  },
+});
+```
+
+## Testing Patterns
+
+### Unit Tests
+
+Test individual functions in isolation:
+
+```typescript src/utils.test.ts
+import { describe, it, expect } from "vitest";
+import { parseJWT } from "./utils";
+
+describe("parseJWT", () => {
+  it("parses valid JWT", () => {
+    const token = "eyJ...";
+    const result = parseJWT(token);
+    expect(result.userId).toBe("123");
+  });
+
+  it("throws on invalid JWT", () => {
+    expect(() => parseJWT("invalid")).toThrow();
+  });
+});
+```
+
+### Integration Tests
+
+Test your Worker's fetch handler:
+
+```typescript src/index.test.ts
+import { env, SELF } from "cloudflare:test";
+import { describe, it, expect, beforeEach } from "vitest";
+
+describe("API Worker", () => {
+  beforeEach(async () => {
+    // Clear KV before each test
+    await env.KV.delete("user:123");
+  });
+
+  it("creates user", async () => {
+    const response = await SELF.fetch("http://example.com/users", {
+      method: "POST",
+      body: JSON.stringify({ name: "Alice" }),
+    });
+
+    expect(response.status).toBe(201);
+    const user = await response.json();
+    expect(user.name).toBe("Alice");
+  });
+
+  it("retrieves user", async () => {
+    await env.KV.put("user:123", JSON.stringify({ name: "Bob" }));
+
+    const response = await SELF.fetch("http://example.com/users/123");
+    expect(response.status).toBe(200);
+
+    const user = await response.json();
+    expect(user.name).toBe("Bob");
+  });
+});
+```
+
+### Testing with Bindings
+
+```typescript src/kv.test.ts
+import { env } from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+
+describe("KV Storage", () => {
+  it("stores and retrieves values", async () => {
+    await env.KV.put("key", "value");
+    const result = await env.KV.get("key");
+    expect(result).toBe("value");
+  });
+
+  it("supports JSON", async () => {
+    const data = { name: "Alice", age: 30 };
+    await env.KV.put("user", JSON.stringify(data));
+    const result = await env.KV.get("user", "json");
+    expect(result).toEqual(data);
+  });
+
+  it("lists keys", async () => {
+    await env.KV.put("key1", "value1");
+    await env.KV.put("key2", "value2");
+
+    const list = await env.KV.list();
+    expect(list.keys.length).toBeGreaterThanOrEqual(2);
+  });
+});
+```
+
+### Testing Durable Objects
+
+```typescript src/counter.test.ts
+import { env, runInDurableObject } from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+
+describe("Counter Durable Object", () => {
+  it("increments count", async () => {
+    const id = env.COUNTER.newUniqueId();
+    const stub = env.COUNTER.get(id);
+
+    const response1 = await stub.fetch("http://example.com/increment");
+    expect(await response1.json()).toEqual({ count: 1 });
+
+    const response2 = await stub.fetch("http://example.com/increment");
+    expect(await response2.json()).toEqual({ count: 2 });
+  });
+
+  it("accesses internal state", async () => {
+    const id = env.COUNTER.newUniqueId();
+
+    const count = await runInDurableObject(env.COUNTER, id, async (instance) => {
+      return instance.count;
+    });
+
+    expect(count).toBe(0);
+  });
+});
+```
+
+### Testing D1 Databases
+
+```typescript src/database.test.ts
+import { env } from "cloudflare:test";
+import { describe, it, expect, beforeAll } from "vitest";
+import { applyD1Migrations } from "@cloudflare/vitest-pool-workers/config";
+import migrations from "../migrations";
+
+describe("Database", () => {
+  beforeAll(async () => {
+    await applyD1Migrations(env.DB, migrations);
+  });
+
+  it("inserts and queries users", async () => {
+    await env.DB.prepare(
+      "INSERT INTO users (name, email) VALUES (?, ?)"
+    )
+      .bind("Alice", "alice@example.com")
+      .run();
+
+    const result = await env.DB.prepare(
+      "SELECT * FROM users WHERE name = ?"
+    )
+      .bind("Alice")
+      .first();
+
+    expect(result.name).toBe("Alice");
+    expect(result.email).toBe("alice@example.com");
+  });
+});
+```
+
+With setup file:
+
+```typescript test/setup.ts
+import { env } from "cloudflare:test";
+import { applyD1Migrations } from "@cloudflare/vitest-pool-workers/config";
+import migrations from "../migrations";
+
+export async function setup() {
+  await applyD1Migrations(env.DB, migrations);
+}
+```
+
+```typescript vitest.config.ts
+import { defineWorkersConfig, readD1Migrations } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig(async () => {
+  const migrations = await readD1Migrations("./migrations");
+
+  return {
+    test: {
+      setupFiles: ["./test/setup.ts"],
+      poolOptions: {
+        workers: {
+          wrangler: { configPath: "./wrangler.json" },
+          miniflare: {
+            bindings: { TEST_MIGRATIONS: migrations },
+          },
+        },
+      },
+    },
+  };
+});
+```
+
+### Testing Queues
+
+```typescript src/queue.test.ts
+import { env, getQueueResult, createMessageBatch } from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+import worker from "./index";
+
+describe("Queue Consumer", () => {
+  it("processes messages", async () => {
+    await env.MY_QUEUE.send({ userId: "123", action: "welcome" });
+
+    const result = await getQueueResult(env.MY_QUEUE);
+    expect(result.ackAll).toBe(true);
+  });
+
+  it("handles batch", async () => {
+    const batch = await createMessageBatch(env.MY_QUEUE, [
+      { userId: "1", action: "welcome" },
+      { userId: "2", action: "welcome" },
+    ]);
+
+    await worker.queue(batch, env);
+    expect(batch.messages.length).toBe(2);
+  });
+});
+```
+
+### Testing Scheduled Events
+
+```typescript src/cron.test.ts
+import { env, createScheduledController } from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+import worker from "./index";
+
+describe("Scheduled Handler", () => {
+  it("runs daily cleanup", async () => {
+    const ctrl = createScheduledController({
+      scheduledTime: new Date("2024-01-01T00:00:00Z"),
+      cron: "0 0 * * *",
+    });
+
+    await worker.scheduled(ctrl, env, {} as ExecutionContext);
+
+    // Verify cleanup ran
+    const count = await env.KV.list();
+    expect(count.keys.length).toBe(0);
+  });
+});
+```
+
+### Mocking Fetch Requests
+
+```typescript src/api.test.ts
+import { env, fetchMock } from "cloudflare:test";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import worker from "./index";
+
+describe("External API", () => {
+  beforeAll(() => {
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+  });
+
+  afterEach(() => {
+    fetchMock.assertNoPendingInterceptors();
+  });
+
+  it("fetches user data", async () => {
+    fetchMock
+      .get("https://api.example.com")
+      .intercept({ path: "/users/123" })
+      .reply(200, { name: "Alice", id: "123" });
+
+    const response = await worker.fetch(
+      new Request("http://example.com/user/123"),
+      env,
+      {} as ExecutionContext
+    );
+
+    const data = await response.json();
+    expect(data.name).toBe("Alice");
+  });
+
+  it("handles errors", async () => {
+    fetchMock
+      .get("https://api.example.com")
+      .intercept({ path: "/users/456" })
+      .reply(404);
+
+    const response = await worker.fetch(
+      new Request("http://example.com/user/456"),
+      env,
+      {} as ExecutionContext
+    );
+
+    expect(response.status).toBe(404);
+  });
+});
+```
+
+### Testing ExecutionContext
+
+```typescript src/context.test.ts
+import {
+  env,
+  createExecutionContext,
+  waitOnExecutionContext,
+} from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+import worker from "./index";
+
+describe("Execution Context", () => {
+  it("waits for async tasks", async () => {
+    const ctx = createExecutionContext();
+    const request = new Request("http://example.com");
+
+    const response = await worker.fetch(request, env, ctx);
+    await waitOnExecutionContext(ctx);
+
+    // All ctx.waitUntil() promises have resolved
+    const result = await env.KV.get("processed");
+    expect(result).toBe("true");
+  });
+});
+```
+
+## Advanced Configuration
+
+### Isolated Storage
+
+Each test file gets isolated storage by default. Enable `singleWorker` for shared storage:
+
+```typescript vitest.config.ts
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        singleWorker: true,
+        wrangler: { configPath: "./wrangler.json" },
+      },
+    },
+  },
+});
+```
+
+### Environment-Specific Testing
+
+```typescript vitest.config.ts
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: {
+          configPath: "./wrangler.json",
+          environment: "staging",
+        },
+      },
+    },
+  },
+});
+```
+
+### Dynamic Configuration
+
+```typescript vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig(async ({ inject }) => {
+  // Access values from globalSetup
+  const port = inject("serverPort");
+
+  return {
+    test: {
+      poolOptions: {
+        workers: {
+          wrangler: { configPath: "./wrangler.json" },
+          miniflare: {
+            bindings: {
+              SERVER_PORT: port,
+            },
+          },
+        },
+      },
+    },
+  };
+});
+```
+
+### Global Setup
+
+```typescript vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    globalSetup: ["./test/global-setup.ts"],
+    poolOptions: {
+      workers: {
+        wrangler: { configPath: "./wrangler.json" },
+      },
+    },
+  },
+});
+```
+
+```typescript test/global-setup.ts
+import { provide } from "vitest/config";
+
+export default async function () {
+  const server = await startTestServer();
+
+  provide("serverPort", server.port);
+
+  return async () => {
+    await server.close();
+  };
+}
+```
+
+## Best Practices
+
+### 1. Use Isolated Tests
+
+Each test should be independent:
+
+```typescript
+import { beforeEach } from "vitest";
+
+beforeEach(async () => {
+  // Clear state before each test
+  await env.KV.delete("key");
+});
+```
+
+### 2. Test Edge Cases
+
+```typescript
+it("handles missing data", async () => {
+  const response = await SELF.fetch("http://example.com/user/999");
+  expect(response.status).toBe(404);
+});
+
+it("handles malformed input", async () => {
+  const response = await SELF.fetch("http://example.com/user/invalid");
+  expect(response.status).toBe(400);
+});
+```
+
+### 3. Use Type Safety
+
+```typescript
+import type { Env } from "./types";
+
+it("has correct types", ({ expect }) => {
+  // TypeScript knows about env.KV, env.DB, etc.
+  expect(env.KV).toBeDefined();
+  expect(env.DB).toBeDefined();
+});
+```
+
+### 4. Test Async Operations
+
+```typescript
+it("completes async work", async () => {
+  const ctx = createExecutionContext();
+
+  const response = await worker.fetch(request, env, ctx);
+  await waitOnExecutionContext(ctx);
+
+  // All waitUntil promises completed
+});
+```
+
+## Troubleshooting
+
+### Tests Not Running
+
+Ensure your pool is configured:
+
+```typescript vitest.config.ts
+export default defineWorkersConfig({
+  test: {
+    pool: "@cloudflare/vitest-pool-workers",
+  },
+});
+```
+
+### Binding Not Available
+
+Check your `wrangler.json` configuration and ensure bindings are defined.
+
+### Type Errors
+
+Generate types:
+
+```bash
+wrangler types
+```
+
+Then reference in your test:
+
+```typescript
+import type { Env } from "./worker-configuration";
+```
+
+### Timeout Errors
+
+Increase test timeout:
+
+```typescript vitest.config.ts
+export default defineWorkersConfig({
+  test: {
+    testTimeout: 30000,
+  },
+});
+```
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Local Development" icon="laptop-code" href="/development/local-development">
+    Develop Workers locally with wrangler dev
+  </Card>
+  <Card title="Debugging" icon="bug" href="/development/debugging">
+    Debug Workers with DevTools
+  </Card>
+  <Card title="Vitest" icon="flask" href="https://vitest.dev">
+    Learn more about Vitest
+  </Card>
+
+</CardGroup>

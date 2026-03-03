@@ -1,0 +1,263 @@
+---
+title: wrangler deploy
+description: Deploy a Worker to Cloudflare
+---
+
+Deploy your Worker to Cloudflare's global network.
+
+```bash
+wrangler deploy [script] [options]
+```
+
+## Arguments
+
+<ParamField path="script" type="string">
+  The path to an entry point for your Worker
+</ParamField>
+
+## Options
+
+### Basic Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker
+</ParamField>
+
+<ParamField path="--compatibility-date" type="string">
+  Date to use for compatibility checks
+</ParamField>
+
+<ParamField path="--compatibility-flags" type="string[]">
+  Flags to use for compatibility checks
+  
+  **Alias:** `--compatibility-flag`
+</ParamField>
+
+<ParamField path="--latest" type="boolean">
+  Use the latest version of the Workers runtime
+  
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="--assets" type="string">
+  Static assets to be served. Replaces Workers Sites.
+</ParamField>
+
+### Build Options
+
+<ParamField path="--no-bundle" type="boolean">
+  Skip internal build steps and directly deploy Worker
+  
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="--outdir" type="string">
+  Output directory for the bundled Worker
+</ParamField>
+
+<ParamField path="--outfile" type="string">
+  Output file for the bundled worker
+</ParamField>
+
+<ParamField path="--minify" type="boolean">
+  Minify the Worker
+</ParamField>
+
+<ParamField path="--jsx-factory" type="string">
+  The function that is called for each JSX element
+</ParamField>
+
+<ParamField path="--jsx-fragment" type="string">
+  The function that is called for each JSX fragment
+</ParamField>
+
+<ParamField path="--tsconfig" type="string">
+  Path to a custom tsconfig.json file
+</ParamField>
+
+<ParamField path="--metafile" type="string | boolean">
+  Path to output build metadata from esbuild. If flag is used without a path, defaults to 'bundle-meta.json' inside the directory specified by --outdir.
+</ParamField>
+
+### Routing Options
+
+<ParamField path="--routes" type="string[]">
+  Routes to upload
+  
+  **Alias:** `--route`
+</ParamField>
+
+<ParamField path="--domains" type="string[]">
+  Custom domains to deploy to
+  
+  **Alias:** `--domain`
+</ParamField>
+
+### Environment Options
+
+<ParamField path="--var" type="string[]">
+  A key-value pair to be injected into the script as a variable
+</ParamField>
+
+<ParamField path="--define" type="string[]">
+  A key-value pair to be substituted in the script
+</ParamField>
+
+<ParamField path="--alias" type="string[]">
+  A module pair to be substituted in the script
+</ParamField>
+
+<ParamField path="--keep-vars" type="boolean">
+  When not used (or set to false), Wrangler will delete all vars before setting those found in the Wrangler configuration. When used (and set to true), the environment variables are not deleted before the deployment. If you set variables via the dashboard you probably want to use this flag. Note that secrets are never deleted by deployments.
+  
+  **Default:** `false`
+</ParamField>
+
+### Trigger Options
+
+<ParamField path="--triggers" type="string[]">
+  Cron schedules to attach
+  
+  **Alias:** `--schedule`, `--schedules`
+</ParamField>
+
+### Deployment Options
+
+<ParamField path="--dry-run" type="boolean">
+  Don't actually deploy
+</ParamField>
+
+<ParamField path="--logpush" type="boolean">
+  Send Trace Events from this Worker to Workers Logpush. This will not configure a corresponding Logpush job automatically.
+</ParamField>
+
+<ParamField path="--upload-source-maps" type="boolean">
+  Include source maps when uploading this Worker
+</ParamField>
+
+<ParamField path="--old-asset-ttl" type="number">
+  Expire old assets in given seconds rather than immediate deletion
+</ParamField>
+
+<ParamField path="--dispatch-namespace" type="string">
+  Name of a dispatch namespace to deploy the Worker to (Workers for Platforms)
+</ParamField>
+
+### Version Control Options
+
+<ParamField path="--tag" type="string">
+  A tag for this Worker Version
+</ParamField>
+
+<ParamField path="--message" type="string">
+  A descriptive message for this Worker Version and Deployment
+</ParamField>
+
+### Advanced Options
+
+<ParamField path="--strict" type="boolean">
+  Enables strict mode for the deploy command, this prevents deployments to occur when there are even small potential risks
+  
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="--experimental-autoconfig" type="boolean">
+  Experimental: Enables framework detection and automatic configuration when deploying
+  
+  **Default:** `true`
+  
+  **Alias:** `--x-autoconfig`
+</ParamField>
+
+<ParamField path="--containers-rollout" type="string">
+  Rollout strategy for Containers changes. If set to immediate, it will override `rollout_percentage_steps` if configured and roll out to 100% of instances in one step.
+  
+  **Choices:** `immediate`, `gradual`
+</ParamField>
+
+## Examples
+
+### Deploy using configuration file
+
+```bash
+wrangler deploy
+```
+
+### Deploy with specific entry point
+
+```bash
+wrangler deploy src/index.ts
+```
+
+### Deploy with a custom name
+
+```bash
+wrangler deploy --name my-worker
+```
+
+### Deploy to a specific route
+
+```bash
+wrangler deploy --route "example.com/*"
+```
+
+### Deploy with environment variables
+
+```bash
+wrangler deploy --var API_KEY:secret123 --var ENV:production
+```
+
+### Deploy with a version tag and message
+
+```bash
+wrangler deploy --tag v1.2.3 --message "Fix critical bug in auth flow"
+```
+
+### Dry run deployment
+
+```bash
+wrangler deploy --dry-run
+```
+
+### Deploy with source maps
+
+```bash
+wrangler deploy --upload-source-maps
+```
+
+### Deploy to custom domain
+
+```bash
+wrangler deploy --domain my-app.com
+```
+
+### Deploy static assets only
+
+```bash
+wrangler deploy --assets ./public
+```
+
+## Deployment Workflow
+
+1. **Build**: Wrangler bundles your Worker code and dependencies
+2. **Upload**: The bundled code is uploaded to Cloudflare
+3. **Publish**: The Worker is deployed to Cloudflare's global network
+4. **Verify**: Routes and triggers are configured
+
+## Version Control
+
+Use `--tag` and `--message` to track deployments:
+
+```bash
+wrangler deploy --tag v2.0.0 --message "Major version release with new API"
+```
+
+This helps you identify and rollback to specific versions if needed.
+
+## Environment Variables
+
+By default, Wrangler deletes all existing variables before setting new ones. Use `--keep-vars` to preserve variables set via the dashboard:
+
+```bash
+wrangler deploy --keep-vars
+```

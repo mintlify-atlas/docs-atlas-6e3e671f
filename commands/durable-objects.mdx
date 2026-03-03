@@ -1,0 +1,211 @@
+---
+title: wrangler durable-objects
+description: Manage Durable Objects migrations
+---
+
+Durable Objects provide low-latency coordination and consistent storage for the Workers platform. Use these commands to manage Durable Objects migrations.
+
+## Overview
+
+Durable Objects migrations are managed through your Worker's configuration file. The `wrangler deploy` command automatically handles migrations based on the `migrations` array in your configuration.
+
+## Configuration
+
+Define Durable Objects and migrations in your Worker configuration:
+
+```json wrangler.json
+{
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MY_DURABLE_OBJECT",
+        "class_name": "MyDurableObject",
+        "script_name": "my-worker"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["MyDurableObject"]
+    }
+  ]
+}
+```
+
+## Migration Types
+
+Migrations allow you to make changes to your Durable Objects over time. Each migration must have a unique `tag` and can include one or more of the following operations:
+
+### new_classes
+
+Declare a new Durable Object class.
+
+```json wrangler.json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["MyDurableObject"]
+    }
+  ]
+}
+```
+
+### renamed_classes
+
+Rename an existing Durable Object class.
+
+```json wrangler.json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["MyDurableObject"]
+    },
+    {
+      "tag": "v2",
+      "renamed_classes": [
+        {
+          "from": "MyDurableObject",
+          "to": "MyRenamedDurableObject"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### deleted_classes
+
+Delete an existing Durable Object class.
+
+```json wrangler.json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["MyDurableObject"]
+    },
+    {
+      "tag": "v2",
+      "deleted_classes": ["MyDurableObject"]
+    }
+  ]
+}
+```
+
+<Warning>
+  Deleting a class will permanently delete all instances of that Durable Object. This operation cannot be undone.
+</Warning>
+
+### new_sqlite_classes
+
+Declare a new Durable Object class with SQLite storage.
+
+```json wrangler.json
+{
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MySqliteDurableObject"]
+    }
+  ]
+}
+```
+
+## Migration Rules
+
+1. **Sequential Tags**: Migrations are applied in order based on their position in the array. Each migration must have a unique tag.
+
+2. **Cumulative**: Once a migration is applied to a deployed Worker, it cannot be removed or modified. New migrations must be added to the end of the array.
+
+3. **Automatic Application**: When you run `wrangler deploy`, Wrangler automatically determines which migrations need to be applied based on the current migration tag of the deployed Worker.
+
+4. **Tag Format**: Tags can be any string, but it's recommended to use a versioning scheme like `v1`, `v2`, etc.
+
+## Example: Complete Migration Flow
+
+Here's an example showing the evolution of a Durable Object through multiple migrations:
+
+```json wrangler.json
+{
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "COUNTER",
+        "class_name": "Counter",
+        "script_name": "my-worker"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["Counter"]
+    },
+    {
+      "tag": "v2",
+      "renamed_classes": [
+        {
+          "from": "Counter",
+          "to": "AdvancedCounter"
+        }
+      ]
+    },
+    {
+      "tag": "v3",
+      "new_classes": ["RateLimiter"]
+    }
+  ]
+}
+```
+
+## Deployment
+
+Migrations are automatically applied when you deploy your Worker:
+
+```bash
+wrangler deploy
+```
+
+Wrangler will:
+1. Check the current migration tag of the deployed Worker
+2. Identify which migrations need to be applied
+3. Apply migrations in sequence
+4. Update the Worker's migration tag
+
+## Best Practices
+
+1. **Test migrations locally**: Use `wrangler dev` to test your Durable Objects before deploying migrations to production.
+
+2. **Plan migrations carefully**: Since migrations cannot be undone, plan your class structure changes in advance.
+
+3. **Use descriptive tags**: Use clear, sequential tags like `v1`, `v2`, `v3` or date-based tags like `2024-01-15`.
+
+4. **Never remove migrations**: Once a migration is deployed, it must remain in the configuration file. Only add new migrations to the end.
+
+5. **Coordinate renames**: When renaming a class, ensure your Worker code is updated to use the new class name before or at the same time as the migration.
+
+## Troubleshooting
+
+### Migration tag mismatch
+
+If you see an error about a migration tag mismatch, it means:
+- The deployed Worker has a migration tag that doesn't exist in your local configuration
+- You may have removed or modified a previous migration
+
+Solution: Restore the missing migration to your configuration file.
+
+### Class not found
+
+If you see an error about a class not being found:
+- Ensure the class is exported from your Worker script
+- Verify the class name in the migration matches the actual class name
+- Check that the class extends `DurableObject`
+
+### Migration order issues
+
+Migrations must be applied in order. If you need to make multiple changes:
+1. Add each change as a separate migration with a new tag
+2. Deploy after each migration to ensure proper sequencing

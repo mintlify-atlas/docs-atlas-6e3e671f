@@ -1,0 +1,242 @@
+---
+title: wrangler dev
+description: Start a local server for developing your Worker
+---
+
+Start a local development server for your Worker with hot reloading and live debugging.
+
+```bash
+wrangler dev [script] [options]
+```
+
+## Arguments
+
+<ParamField path="script" type="string">
+  The path to an entry point for your Worker
+</ParamField>
+
+## Options
+
+### Basic Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker
+</ParamField>
+
+<ParamField path="--compatibility-date" type="string">
+  Date to use for compatibility checks
+</ParamField>
+
+<ParamField path="--compatibility-flags" type="string[]">
+  Flags to use for compatibility checks
+  
+  **Alias:** `--compatibility-flag`
+</ParamField>
+
+<ParamField path="--latest" type="boolean">
+  Use the latest version of the Workers runtime
+  
+  **Default:** `true`
+</ParamField>
+
+<ParamField path="--assets" type="string">
+  Static assets to be served. Replaces Workers Sites.
+</ParamField>
+
+### Build Options
+
+<ParamField path="--no-bundle" type="boolean">
+  Skip internal build steps and directly deploy script
+  
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="--minify" type="boolean">
+  Minify the script
+</ParamField>
+
+<ParamField path="--jsx-factory" type="string">
+  The function that is called for each JSX element
+</ParamField>
+
+<ParamField path="--jsx-fragment" type="string">
+  The function that is called for each JSX fragment
+</ParamField>
+
+<ParamField path="--tsconfig" type="string">
+  Path to a custom tsconfig.json file
+</ParamField>
+
+### Server Options
+
+<ParamField path="--ip" type="string">
+  IP address to listen on
+</ParamField>
+
+<ParamField path="--port" type="number">
+  Port to listen on
+</ParamField>
+
+<ParamField path="--inspector-port" type="number">
+  Port for devtools to connect to
+</ParamField>
+
+<ParamField path="--inspector-ip" type="string">
+  IP address for devtools to connect to
+</ParamField>
+
+<ParamField path="--local-protocol" type="string">
+  Protocol to listen to requests on, defaults to http
+  
+  **Choices:** `http`, `https`
+</ParamField>
+
+<ParamField path="--https-key-path" type="string">
+  Path to a custom certificate key
+</ParamField>
+
+<ParamField path="--https-cert-path" type="string">
+  Path to a custom certificate
+</ParamField>
+
+### Routing Options
+
+<ParamField path="--routes" type="string[]">
+  Routes to upload
+  
+  **Alias:** `--route`
+</ParamField>
+
+<ParamField path="--host" type="string">
+  Host to forward requests to, defaults to the zone of project
+</ParamField>
+
+<ParamField path="--local-upstream" type="string">
+  Host to act as origin in local mode, defaults to dev.host or route
+</ParamField>
+
+<ParamField path="--upstream-protocol" type="string">
+  Protocol to forward requests to host on, defaults to https
+  
+  **Choices:** `http`, `https`
+</ParamField>
+
+### Environment Options
+
+<ParamField path="--var" type="string[]">
+  A key-value pair to be injected into the script as a variable
+</ParamField>
+
+<ParamField path="--define" type="string[]">
+  A key-value pair to be substituted in the script
+</ParamField>
+
+<ParamField path="--alias" type="string[]">
+  A module pair to be substituted in the script
+</ParamField>
+
+### Mode Options
+
+<ParamField path="--remote" type="boolean">
+  Run on the global Cloudflare network with access to production resources
+  
+  **Default:** `false`
+  
+  **Alias:** `-r`
+</ParamField>
+
+<ParamField path="--local" type="boolean">
+  Run locally with remote bindings disabled
+  
+  **Alias:** `-l`
+</ParamField>
+
+### Advanced Options
+
+<ParamField path="--persist-to" type="string">
+  Specify directory to use for local persistence (defaults to .wrangler/state)
+</ParamField>
+
+<ParamField path="--live-reload" type="boolean">
+  Auto reload HTML pages when change is detected in local mode
+</ParamField>
+
+<ParamField path="--test-scheduled" type="boolean">
+  Test scheduled events by visiting /__scheduled in browser
+  
+  **Default:** `false`
+</ParamField>
+
+<ParamField path="--log-level" type="string">
+  Specify logging level
+  
+  **Choices:** `debug`, `info`, `log`, `warn`, `error`, `none`
+</ParamField>
+
+<ParamField path="--show-interactive-dev-session" type="boolean">
+  Show interactive dev session (defaults to true if the terminal supports interactivity)
+</ParamField>
+
+<ParamField path="--types" type="boolean">
+  Generate types from your Worker configuration
+</ParamField>
+
+## Examples
+
+### Start local development server
+
+```bash
+wrangler dev
+```
+
+### Develop with specific entry point
+
+```bash
+wrangler dev src/index.ts
+```
+
+### Run in remote mode
+
+```bash
+wrangler dev --remote
+```
+
+### Specify custom port
+
+```bash
+wrangler dev --port 8080
+```
+
+### Inject environment variables
+
+```bash
+wrangler dev --var API_KEY:secret123 --var ENV:development
+```
+
+### Enable live reload
+
+```bash
+wrangler dev --live-reload
+```
+
+### Test scheduled events
+
+```bash
+wrangler dev --test-scheduled
+```
+
+Visit `http://localhost:8787/__scheduled` in your browser to trigger a scheduled event.
+
+## Local vs Remote Mode
+
+### Local Mode (default)
+
+Runs your Worker locally using Miniflare, which simulates the Workers runtime. This is faster and doesn't count against your request limits, but some bindings may not work exactly as they would in production.
+
+### Remote Mode
+
+Runs your Worker on Cloudflare's global network with access to production resources. Use this when you need to test with real bindings or production-like behavior.
+
+```bash
+wrangler dev --remote
+```

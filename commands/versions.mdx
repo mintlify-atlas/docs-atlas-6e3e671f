@@ -1,0 +1,433 @@
+---
+title: "wrangler versions"
+description: "List, view, upload and deploy Versions of your Worker to Cloudflare"
+---
+
+The `wrangler versions` commands help you manage Worker Versions using Cloudflare's Gradual Rollouts feature. Versions allow you to safely deploy changes by splitting traffic between multiple Worker versions.
+
+## Subcommands
+
+- [`wrangler versions view`](#view) - View details of a specific version
+- [`wrangler versions list`](#list) - List the 10 most recent versions
+- [`wrangler versions upload`](#upload) - Upload your Worker code as a new version
+- [`wrangler versions deploy`](#deploy) - Deploy versions by splitting traffic
+- [`wrangler versions secret`](#secrets) - Manage secrets for versioned Workers
+
+<Note>
+Versions provide gradual rollout capabilities, allowing you to deploy new code incrementally and reduce risk. Changes to triggers (routes, custom domains, cron schedules) must be applied separately using `wrangler triggers deploy`.
+</Note>
+
+## view
+
+View the details of a specific Worker Version including metadata, bindings, and configuration.
+
+```bash
+wrangler versions view <version-id> [OPTIONS]
+```
+
+### Positional Arguments
+
+<ParamField path="version-id" type="string" required>
+  The Worker Version ID to view (UUID format)
+</ParamField>
+
+### Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker. Can also be specified in your configuration file.
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Display output as clean JSON format instead of formatted text.
+</ParamField>
+
+### Example
+
+```bash
+# View a specific version
+wrangler versions view 10000000-0000-0000-0000-000000000000
+
+# View with JSON output
+wrangler versions view 10000000-0000-0000-0000-000000000000 --json
+```
+
+### Output
+
+The command displays:
+- Version ID
+- Creation timestamp
+- Author email
+- Source (Wrangler, Dashboard, API, or Terraform)
+- Tag and message annotations (if set)
+- Script handlers
+- Compatibility date and flags
+- Secrets (names only, not values)
+- Bindings (KV, Durable Objects, R2, etc.)
+
+## list
+
+List the 10 most recent Versions of your Worker, sorted by creation date.
+
+```bash
+wrangler versions list [OPTIONS]
+```
+
+### Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker. Can also be specified in your configuration file.
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Display output as clean JSON format.
+</ParamField>
+
+### Example
+
+```bash
+# List recent versions
+wrangler versions list
+
+# List versions for a specific Worker
+wrangler versions list --name my-worker
+
+# Get JSON output
+wrangler versions list --json
+```
+
+### Output
+
+For each version, displays:
+- Version ID
+- Created timestamp
+- Author email
+- Source (how the version was created)
+- Tag annotation
+- Message annotation
+
+## upload
+
+Upload your Worker code and configuration as a new Version without deploying it to production traffic.
+
+```bash
+wrangler versions upload [SCRIPT] [OPTIONS]
+```
+
+### Positional Arguments
+
+<ParamField path="script" type="string">
+  The path to an entry point for your Worker. If not specified, uses the `main` field from your configuration file.
+</ParamField>
+
+### Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker.
+</ParamField>
+
+<ParamField path="--tag" type="string">
+  A tag for this Worker Version (for organizational purposes).
+</ParamField>
+
+<ParamField path="--message" type="string">
+  A descriptive message for this Worker Version.
+</ParamField>
+
+<ParamField path="--preview-alias" type="string">
+  Name of an alias for this Worker version. Allows testing the version at a unique URL before deployment.
+</ParamField>
+
+<ParamField path="--compatibility-date" type="string">
+  Date to use for compatibility checks. Required when uploading versions.
+</ParamField>
+
+<ParamField path="--compatibility-flags" type="string[]">
+  Flags to use for compatibility checks. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--latest" type="boolean" default="false">
+  Use the latest version of the Workers runtime.
+</ParamField>
+
+<ParamField path="--assets" type="string">
+  Static assets directory to be served. Replaces Workers Sites.
+</ParamField>
+
+<ParamField path="--var" type="string[]">
+  A key-value pair to be injected into the script as a variable. Format: `KEY:VALUE`. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--define" type="string[]">
+  A key-value pair to be substituted in the script at build time. Format: `KEY:VALUE`. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--alias" type="string[]">
+  A module pair to be substituted in the script. Format: `OLD_MODULE:NEW_MODULE`. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--jsx-factory" type="string">
+  The function that is called for each JSX element.
+</ParamField>
+
+<ParamField path="--jsx-fragment" type="string">
+  The function that is called for each JSX fragment.
+</ParamField>
+
+<ParamField path="--tsconfig" type="string">
+  Path to a custom tsconfig.json file.
+</ParamField>
+
+<ParamField path="--minify" type="boolean">
+  Minify the Worker script.
+</ParamField>
+
+<ParamField path="--upload-source-maps" type="boolean">
+  Include source maps when uploading this Worker Version.
+</ParamField>
+
+<ParamField path="--no-bundle" type="boolean" default="false">
+  Skip internal build steps and directly upload Worker without bundling.
+</ParamField>
+
+<ParamField path="--outdir" type="string">
+  Output directory for the bundled Worker.
+</ParamField>
+
+<ParamField path="--outfile" type="string">
+  Output file for the bundled Worker.
+</ParamField>
+
+<ParamField path="--dry-run" type="boolean" default="false">
+  Compile the project without actually uploading the version.
+</ParamField>
+
+### Example
+
+```bash
+# Upload a new version
+wrangler versions upload
+
+# Upload with tag and message
+wrangler versions upload --tag "v2.0.0" --message "Added new API endpoints"
+
+# Upload with preview alias for testing
+wrangler versions upload --preview-alias "feature-branch"
+
+# Upload with compatibility settings
+wrangler versions upload --compatibility-date "2024-01-01" --compatibility-flags "nodejs_compat"
+
+# Dry run to validate without uploading
+wrangler versions upload --dry-run
+```
+
+### Workflow
+
+<Steps>
+  <Step title="Bundle your Worker">
+    Wrangler bundles your Worker code using esbuild (unless `--no-bundle` is specified).
+  </Step>
+  <Step title="Upload assets">
+    If using Workers Assets, static files are synced to Cloudflare.
+  </Step>
+  <Step title="Create version">
+    The Worker code and configuration are uploaded as a new Version. The Version ID is returned.
+  </Step>
+  <Step title="Preview (optional)">
+    If the version includes preview capabilities and you have a workers.dev subdomain enabled, you can access the version at a preview URL.
+  </Step>
+</Steps>
+
+<Note>
+After uploading a version, use `wrangler versions deploy` to route traffic to it. Changes to triggers (routes, custom domains, cron schedules) are managed separately with `wrangler triggers deploy`.
+</Note>
+
+## deploy
+
+Safely roll out new Versions of your Worker by splitting traffic between multiple versions.
+
+```bash
+wrangler versions deploy [VERSION-SPECS] [OPTIONS]
+```
+
+### Positional Arguments
+
+<ParamField path="version-specs" type="string[]">
+  Shorthand notation to deploy Worker Versions using format `<version-id>@<percentage>`. Multiple versions can be specified. Example: `abc123@50 def456@50`
+</ParamField>
+
+### Options
+
+<ParamField path="--name" type="string">
+  Name of the Worker.
+</ParamField>
+
+<ParamField path="--version-id" type="string[]">
+  Worker Version ID(s) to deploy. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--percentage" type="number[]">
+  Percentage of traffic to split between Worker Versions (0-100). Must match the order of version IDs. Can be specified multiple times.
+</ParamField>
+
+<ParamField path="--message" type="string">
+  Description of this deployment (optional).
+</ParamField>
+
+<ParamField path="--yes" type="boolean" default="false">
+  Automatically accept defaults to prompts.
+  
+  Alias: `-y`
+</ParamField>
+
+<ParamField path="--dry-run" type="boolean" default="false">
+  Don't actually deploy, just validate the configuration.
+</ParamField>
+
+### Examples
+
+```bash
+# Deploy a single version to 100% of traffic
+wrangler versions deploy abc12345@100
+
+# Split traffic between two versions
+wrangler versions deploy abc12345@90 def67890@10
+
+# Use explicit flags
+wrangler versions deploy --version-id abc12345 --percentage 90 --version-id def67890 --percentage 10
+
+# Interactive mode with prompts
+wrangler versions deploy
+
+# Add a deployment message
+wrangler versions deploy abc12345@100 --message "Hotfix for login bug"
+
+# Non-interactive mode
+wrangler versions deploy abc12345@100 --yes
+```
+
+### Workflow
+
+<Steps>
+  <Step title="Review current deployment">
+    Wrangler displays your current deployment showing which versions are receiving traffic.
+  </Step>
+  <Step title="Select versions">
+    Choose which versions to deploy. You can select from:
+    - Versions in the current deployment
+    - The 10 most recently uploaded versions
+    - Specific versions provided as arguments
+  </Step>
+  <Step title="Set traffic percentages">
+    Specify what percentage of traffic each version should receive. Percentages must total 100%.
+  </Step>
+  <Step title="Add deployment message">
+    Optionally add a message describing this deployment.
+  </Step>
+  <Step title="Deploy">
+    The deployment is created and traffic is immediately routed according to the specified percentages.
+  </Step>
+  <Step title="Sync settings">
+    Non-versioned settings (logpush, tail_consumers, observability) are synced if configured.
+  </Step>
+</Steps>
+
+<Warning>
+Traffic percentages must total exactly 100%. If you specify percentages that don't sum to 100%, Wrangler will display an error and prompt you to re-enter them.
+</Warning>
+
+<Note>
+**Container configuration changes** (such as image, max_instances) are not gradually rolled out with versions. These changes only take effect after running `wrangler deploy`.
+</Note>
+
+### Traffic Distribution
+
+You can specify traffic distribution in multiple ways:
+
+1. **Shorthand notation:**
+   ```bash
+   wrangler versions deploy version1@75 version2@25
+   ```
+
+2. **Explicit flags:**
+   ```bash
+   wrangler versions deploy --version-id version1 --percentage 75 --version-id version2 --percentage 25
+   ```
+
+3. **Interactive mode:**
+   ```bash
+   wrangler versions deploy
+   ```
+   Wrangler will prompt you to select versions and enter percentages.
+
+## secrets
+
+Manage secrets for versioned Workers. When you modify a secret, a new version is automatically created.
+
+### Subcommands
+
+- `wrangler versions secret put <key>` - Create or update a secret
+- `wrangler versions secret delete <key>` - Delete a secret
+- `wrangler versions secret list` - List secrets in deployed versions
+- `wrangler versions secret bulk <json>` - Bulk upload secrets from JSON
+
+<Note>
+Secrets are version-specific. When you create or update a secret, Wrangler creates a new version based on your latest uploaded version with the updated secret binding.
+</Note>
+
+See the [wrangler secret](/commands/secret) documentation for detailed information on secret management. The `versions secret` commands work similarly but create new versions instead of directly modifying the deployed Worker.
+
+## Related Commands
+
+- [`wrangler deployments`](/commands/deployments) - View deployment history
+- [`wrangler rollback`](/commands/rollback) - Rollback to a previous version
+- [`wrangler deploy`](/commands/deploy) - Deploy without gradual rollouts
+
+## Configuration
+
+Many options can be set in your `wrangler.json` configuration file:
+
+```json wrangler.json
+{
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.01
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always test with preview URLs before deploying">
+    Use `--preview-alias` when uploading versions to test changes at a unique URL before routing production traffic.
+  </Accordion>
+  
+  <Accordion title="Use tags and messages for tracking">
+    Add `--tag` and `--message` to your uploads to document what changed in each version. This makes it easier to identify versions later.
+  </Accordion>
+  
+  <Accordion title="Roll out gradually">
+    Start with a small percentage of traffic (e.g., 5-10%) when deploying a new version, then increase gradually:
+    ```bash
+    # Initial rollout
+    wrangler versions deploy new-version@10 old-version@90
+    
+    # Increase if stable
+    wrangler versions deploy new-version@50 old-version@50
+    
+    # Complete rollout
+    wrangler versions deploy new-version@100
+    ```
+  </Accordion>
+  
+  <Accordion title="Set compatibility_date in config">
+    Always specify `compatibility_date` in your configuration file to ensure consistent runtime behavior across versions.
+  </Accordion>
+</AccordionGroup>

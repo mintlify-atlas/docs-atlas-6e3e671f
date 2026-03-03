@@ -1,0 +1,546 @@
+---
+title: "wrangler kv"
+description: "Manage Workers KV key-value storage"
+---
+
+Manage Workers KV Namespaces and key-value pairs from the command line.
+
+## Commands
+
+### Namespace Management
+
+<Accordion title="wrangler kv namespace create">
+  Create a new KV namespace.
+
+  ```bash
+  wrangler kv namespace create <namespace>
+  ```
+
+  <ParamField path="namespace" type="string" required>
+    The name of the new namespace
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--preview" type="boolean">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--env" type="string">
+    Environment to use for operations and .env files
+  </ParamField>
+
+  <ParamField path="--update-config" type="boolean">
+    Automatically update your wrangler configuration file with the new namespace binding (defaults to interactive prompt)
+  </ParamField>
+
+  <ParamField path="--binding-name" type="string">
+    The name of the binding to use for the namespace in your wrangler configuration file
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler kv namespace create MY_KV
+  ```
+</Accordion>
+
+<Accordion title="wrangler kv namespace list">
+  Output a list of all KV namespaces associated with your account.
+
+  ```bash
+  wrangler kv namespace list
+  ```
+
+  **Example:**
+
+  ```bash
+  wrangler kv namespace list
+  ```
+
+  Returns JSON array of namespace objects with `id` and `title` properties.
+</Accordion>
+
+<Accordion title="wrangler kv namespace delete">
+  Delete a KV namespace.
+
+  ```bash
+  wrangler kv namespace delete [namespace]
+  ```
+
+  <ParamField path="namespace" type="string">
+    The name of the namespace to delete
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to delete from
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to delete
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--skip-confirmation" type="boolean">
+    Skip confirmation (alias: `-y`)
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler kv namespace delete MY_KV
+  wrangler kv namespace delete --namespace-id abc123
+  ```
+
+  You must specify one of: namespace name, `--binding`, or `--namespace-id`.
+</Accordion>
+
+<Accordion title="wrangler kv namespace rename">
+  Rename a KV namespace.
+
+  ```bash
+  wrangler kv namespace rename [old-name] --new-name <new-name>
+  ```
+
+  <ParamField path="old-name" type="string">
+    The current name of the namespace to rename
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to rename
+  </ParamField>
+
+  <ParamField path="--new-name" type="string" required>
+    The new name for the namespace (max 512 characters)
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler kv namespace rename OLD_NAME --new-name NEW_NAME
+  wrangler kv namespace rename --namespace-id abc123 --new-name NEW_NAME
+  ```
+
+  You must specify either old-name or `--namespace-id`.
+</Accordion>
+
+### Key Operations
+
+<Accordion title="wrangler kv key put">
+  Write a single key/value pair to a namespace.
+
+  ```bash
+  wrangler kv key put <key> [value]
+  ```
+
+  <ParamField path="key" type="string" required>
+    The key to write to
+  </ParamField>
+
+  <ParamField path="value" type="string">
+    The value to write
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to write to
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to write to
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--path" type="string">
+    Read value from the file at a given path
+  </ParamField>
+
+  <ParamField path="--ttl" type="number">
+    Time for which the entries should be visible (in seconds)
+  </ParamField>
+
+  <ParamField path="--expiration" type="number">
+    Time since the UNIX epoch after which the entry expires
+  </ParamField>
+
+  <ParamField path="--metadata" type="string">
+    Arbitrary JSON that is associated with a key
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Interact with local storage
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Interact with remote storage
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Directory for local persistence
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler kv key put mykey "myvalue" --binding=MY_KV
+  wrangler kv key put mykey --path=./file.txt --namespace-id=abc123
+  wrangler kv key put mykey "value" --ttl=3600 --metadata='{"tag":"production"}' --binding=MY_KV
+  ```
+
+  You must provide either `--value` or `--path`, and either `--binding` or `--namespace-id`.
+</Accordion>
+
+<Accordion title="wrangler kv key get">
+  Read a single value by key from a namespace.
+
+  ```bash
+  wrangler kv key get <key>
+  ```
+
+  <ParamField path="key" type="string" required>
+    The key value to get
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to get from
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to get from
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean" default="false">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--text" type="boolean" default="false">
+    Decode the returned value as a utf8 string
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Interact with local storage
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Interact with remote storage
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Directory for local persistence
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler kv key get mykey --binding=MY_KV
+  wrangler kv key get mykey --namespace-id=abc123 --text
+  ```
+
+  You must provide either `--binding` or `--namespace-id`.
+</Accordion>
+
+<Accordion title="wrangler kv key list">
+  Output a list of all keys in a namespace.
+
+  ```bash
+  wrangler kv key list
+  ```
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to list
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to list
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean" default="false">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--prefix" type="string">
+    A prefix to filter listed keys
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Interact with local storage
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Interact with remote storage
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Directory for local persistence
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler kv key list --binding=MY_KV
+  wrangler kv key list --namespace-id=abc123 --prefix="user:"
+  ```
+
+  Returns JSON array of key objects.
+</Accordion>
+
+<Accordion title="wrangler kv key delete">
+  Remove a single key value pair from a namespace.
+
+  ```bash
+  wrangler kv key delete <key>
+  ```
+
+  <ParamField path="key" type="string" required>
+    The key value to delete
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to delete from
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to delete from
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Interact with local storage
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Interact with remote storage
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Directory for local persistence
+  </ParamField>
+
+  **Example:**
+
+  ```bash
+  wrangler kv key delete mykey --binding=MY_KV
+  wrangler kv key delete mykey --namespace-id=abc123
+  ```
+</Accordion>
+
+### Bulk Operations
+
+<Accordion title="wrangler kv bulk put">
+  Upload multiple key-value pairs to a namespace from a JSON file.
+
+  ```bash
+  wrangler kv bulk put <filename>
+  ```
+
+  <ParamField path="filename" type="string" required>
+    The file containing the key/value pairs to write
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to write to
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to write to
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--ttl" type="number">
+    Time for which the entries should be visible
+  </ParamField>
+
+  <ParamField path="--expiration" type="number">
+    Time since the UNIX epoch after which the entry expires
+  </ParamField>
+
+  <ParamField path="--metadata" type="string">
+    Arbitrary JSON that is associated with a key
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Interact with local storage
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Interact with remote storage
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Directory for local persistence
+  </ParamField>
+
+  **File format:**
+
+  ```json
+  [
+    {
+      "key": "key1",
+      "value": "value1",
+      "expiration_ttl": 3600,
+      "metadata": {"tag": "production"},
+      "base64": false
+    },
+    {
+      "key": "key2",
+      "value": "value2"
+    }
+  ]
+  ```
+
+  **Example:**
+
+  ```bash
+  wrangler kv bulk put data.json --binding=MY_KV
+  ```
+</Accordion>
+
+<Accordion title="wrangler kv bulk get">
+  Gets multiple key-value pairs from a namespace.
+
+  ```bash
+  wrangler kv bulk get <filename>
+  ```
+
+  <ParamField path="filename" type="string" required>
+    The file containing the keys to get
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to get from
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to get from
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean" default="false">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Interact with local storage
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Interact with remote storage
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Directory for local persistence
+  </ParamField>
+
+  **File format:**
+
+  ```json
+  ["key1", "key2", "key3"]
+  ```
+
+  Or with object format:
+
+  ```json
+  [
+    {"name": "key1"},
+    {"name": "key2"}
+  ]
+  ```
+
+  **Example:**
+
+  ```bash
+  wrangler kv bulk get keys.json --binding=MY_KV
+  ```
+
+  Returns JSON object mapping keys to their values.
+</Accordion>
+
+<Accordion title="wrangler kv bulk delete">
+  Delete multiple key-value pairs from a namespace.
+
+  ```bash
+  wrangler kv bulk delete <filename>
+  ```
+
+  <ParamField path="filename" type="string" required>
+    The file containing the keys to delete
+  </ParamField>
+
+  **Options:**
+
+  <ParamField path="--binding" type="string">
+    The binding name to the namespace to delete from
+  </ParamField>
+
+  <ParamField path="--namespace-id" type="string">
+    The id of the namespace to delete from
+  </ParamField>
+
+  <ParamField path="--preview" type="boolean">
+    Interact with a preview namespace
+  </ParamField>
+
+  <ParamField path="--force" type="boolean">
+    Do not ask for confirmation before deleting (alias: `-f`)
+  </ParamField>
+
+  <ParamField path="--local" type="boolean">
+    Interact with local storage
+  </ParamField>
+
+  <ParamField path="--remote" type="boolean">
+    Interact with remote storage
+  </ParamField>
+
+  <ParamField path="--persist-to" type="string">
+    Directory for local persistence
+  </ParamField>
+
+  **File format:**
+
+  ```json
+  ["key1", "key2", "key3"]
+  ```
+
+  Or with object format:
+
+  ```json
+  [
+    {"name": "key1"},
+    {"name": "key2"}
+  ]
+  ```
+
+  **Example:**
+
+  ```bash
+  wrangler kv bulk delete keys.json --binding=MY_KV
+  wrangler kv bulk delete keys.json --namespace-id=abc123 --force
+  ```
+</Accordion>

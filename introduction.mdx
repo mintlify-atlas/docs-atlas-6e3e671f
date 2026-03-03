@@ -1,0 +1,162 @@
+---
+title: "Introduction"
+description: "Build serverless applications that run instantly across the globe with Cloudflare Workers SDK"
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/cloudflare-workers-light.svg"
+  alt="Cloudflare Workers SDK"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/cloudflare-workers-dark.svg"
+  alt="Cloudflare Workers SDK"
+/>
+
+## What is Cloudflare Workers SDK?
+
+Cloudflare Workers SDK is a comprehensive set of tools and libraries for developing, testing, and deploying serverless applications on Cloudflare's global network. The SDK provides everything you need to build production-ready Workers applications with exceptional performance, reliability, and scale.
+
+## Core Components
+
+The Workers SDK consists of three primary tools that work together to provide a complete development experience:
+
+### Wrangler CLI
+
+Wrangler is the command-line interface for building Cloudflare Workers. It provides:
+
+- Local development server with live reloading and DevTools integration
+- Deployment to Cloudflare's global network
+- Project scaffolding and configuration management
+- Built-in testing and debugging capabilities
+
+```bash
+# Start local development
+wrangler dev
+
+# Deploy to production
+wrangler deploy
+```
+
+### Create Cloudflare (C3)
+
+Create Cloudflare is a CLI for quickly scaffolding new applications with pre-configured templates and best practices:
+
+```bash
+npm create cloudflare@latest
+```
+
+C3 supports various frameworks and templates including:
+- Hello World workers
+- Workers with static assets
+- Durable Objects
+- Scheduled workers (cron triggers)
+- Framework integrations (React, Vue, and more)
+
+### Miniflare
+
+Miniflare is a local development simulator powered by `workerd`, the same runtime that runs your Workers in production. It provides:
+
+- Accurate local simulation of the Workers runtime
+- Support for all Cloudflare bindings (KV, R2, D1, Durable Objects)
+- Integration with Wrangler and Vitest for testing
+- Chrome DevTools integration for debugging
+
+## Why Choose Cloudflare Workers?
+
+<CardGroup cols={2}>
+  <Card title="Global Performance" icon="globe">
+    Deploy your code to 300+ cities worldwide. Workers run on Cloudflare's edge network, ensuring minimal latency for users everywhere.
+  </Card>
+  
+  <Card title="Zero Cold Starts" icon="bolt">
+    Workers start in less than 1ms with no cold starts. Your applications are always ready to handle requests instantly.
+  </Card>
+  
+  <Card title="Standards-Based" icon="code">
+    Built on open web standards like the Service Worker API, Fetch API, and Web Streams. Your code is portable and future-proof.
+  </Card>
+  
+  <Card title="Integrated Ecosystem" icon="puzzle-piece">
+    Access to KV (key-value storage), R2 (object storage), D1 (SQL database), Durable Objects, and more — all from the same runtime.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### Modern Development Experience
+
+- **TypeScript Support**: First-class TypeScript support with full type definitions
+- **Hot Module Reloading**: See changes instantly during development
+- **DevTools Integration**: Debug with Chrome DevTools using breakpoints and console logging
+- **Testing Framework**: Built-in testing with Vitest and `@cloudflare/vitest-pool-workers`
+
+### Production-Ready Runtime
+
+- **Web Standards**: Built on V8 and implements standard Web APIs
+- **Secure by Default**: Isolated execution environment for each request
+- **Auto-scaling**: Handles traffic spikes automatically without configuration
+- **Pay-per-use**: Only pay for what you use with generous free tier
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Create your first Worker in under 5 minutes
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/installation">
+    Install and configure the Workers SDK
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/api/wrangler-api">
+    Explore the Wrangler and Miniflare APIs
+  </Card>
+</CardGroup>
+
+## System Requirements
+
+<Note>
+  **Node.js Version**: The Workers SDK requires Node.js 20.0.0 or higher.
+  
+  Wrangler supports macOS 13.5+, Windows 11, and Linux distributions with glibc 2.35+.
+</Note>
+
+## Package Versions
+
+The SDK includes these core packages:
+
+- `wrangler` - Current version: 4.69.0
+- `create-cloudflare` - Current version: 2.64.4
+- `miniflare` - Current version: 4.20260305.0
+
+All packages are actively maintained and follow semantic versioning.
+
+## Community and Support
+
+<CardGroup cols={2}>
+  <Card title="Discord Community" icon="discord" href="https://discord.cloudflare.com">
+    Join thousands of developers building with Workers
+  </Card>
+  
+  <Card title="GitHub Issues" icon="github" href="https://github.com/cloudflare/workers-sdk/issues">
+    Report bugs or request features
+  </Card>
+  
+  <Card title="Discussions" icon="comments" href="https://github.com/cloudflare/workers-sdk/discussions">
+    Ask questions and share knowledge
+  </Card>
+  
+  <Card title="Official Docs" icon="book-open" href="https://developers.cloudflare.com/workers">
+    Comprehensive Cloudflare Workers documentation
+  </Card>
+</CardGroup>
+
+## Open Source
+
+The entire Workers SDK is open source and licensed under MIT or Apache-2.0. Contributions are welcome! See our [Contributing Guide](https://github.com/cloudflare/workers-sdk/blob/main/CONTRIBUTING.md) to get started.
+
+<Tip>
+  Ready to build your first Worker? Head to the [Quickstart](/quickstart) to create and deploy a Worker in minutes.
+</Tip>

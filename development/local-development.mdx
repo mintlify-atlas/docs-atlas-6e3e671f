@@ -1,0 +1,437 @@
+---
+title: Local Development
+description: Develop Workers locally with wrangler dev and Miniflare
+---
+
+Develop and test your Workers locally using `wrangler dev`, which runs your Worker in a local simulator powered by Miniflare and the workerd runtime.
+
+## Quick Start
+
+```bash
+npx wrangler dev
+```
+
+This starts a local development server with:
+- Hot reload on file changes
+- Local bindings simulation (KV, R2, D1, Durable Objects, etc.)
+- DevTools debugging support
+- Live reload for HTML pages
+
+## Development Modes
+
+### Local Mode (Default)
+
+Runs your Worker code locally in the workerd runtime with simulated bindings:
+
+```bash
+wrangler dev
+```
+
+**Benefits:**
+- Fast iteration speed
+- Works offline
+- Breakpoint debugging
+- No Cloudflare account required for basic development
+
+**Limitations:**
+- Bindings are simulated, not production resources
+- Some features may behave differently than production
+
+### Remote Mode
+
+Runs your Worker on Cloudflare's global network:
+
+```bash
+wrangler dev --remote
+```
+
+**Benefits:**
+- Uses production bindings and resources
+- Exact production behavior
+- Access to remote-only features
+
+**Limitations:**
+- Slower iteration (requires upload)
+- Requires Cloudflare account
+- No breakpoint debugging
+
+### Hybrid Mode (Remote Bindings)
+
+Run Worker code locally but connect to remote resources:
+
+```json wrangler.json
+{
+  "name": "my-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+  "kv_namespaces": [
+    {
+      "binding": "MY_KV",
+      "id": "abc123",
+      "remote": true
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-database",
+      "database_id": "xyz789",
+      "remote": true
+    }
+  ]
+}
+```
+
+This gives you fast local iteration with access to production data.
+
+## Server Configuration
+
+### Port and Host
+
+```bash
+wrangler dev --port 8787 --ip 0.0.0.0
+```
+
+Or in configuration:
+
+```json wrangler.json
+{
+  "dev": {
+    "ip": "127.0.0.1",
+    "port": 8787
+  }
+}
+```
+
+The dev server defaults to:
+- Host: `127.0.0.1`
+- Port: `8787` (auto-assigned if busy)
+
+### HTTPS Support
+
+Run the dev server with HTTPS:
+
+```bash
+wrangler dev --local-protocol https \
+  --https-cert-path ./cert.pem \
+  --https-key-path ./key.pem
+```
+
+Or configure in `wrangler.json`:
+
+```json wrangler.json
+{
+  "dev": {
+    "local_protocol": "https",
+    "https_cert_path": "./cert.pem",
+    "https_key_path": "./key.pem"
+  }
+}
+```
+
+### Upstream Configuration
+
+Configure how your Worker connects to origin servers:
+
+```bash
+wrangler dev --local-upstream https://example.com
+```
+
+```json wrangler.json
+{
+  "dev": {
+    "host": "example.com",
+    "upstream_protocol": "https"
+  }
+}
+```
+
+## Persistence
+
+By default, local bindings use in-memory storage. Enable persistence to retain data across restarts:
+
+```bash
+wrangler dev --persist-to .wrangler/state
+```
+
+Or configure in `wrangler.json`:
+
+```json wrangler.json
+{
+  "dev": {
+    "persist_to": ".wrangler/state"
+  }
+}
+```
+
+Persisted data is stored in:
+- `.wrangler/state/v3/kv/` - KV namespaces
+- `.wrangler/state/v3/do/` - Durable Objects
+- `.wrangler/state/v3/r2/` - R2 buckets
+- `.wrangler/state/v3/d1/` - D1 databases
+
+## Live Reload
+
+Enable automatic page refresh when your Worker changes:
+
+```bash
+wrangler dev --live-reload
+```
+
+```json wrangler.json
+{
+  "dev": {
+    "live_reload": true
+  }
+}
+```
+
+This injects a WebSocket connection that triggers browser refresh on changes. Only works in local mode.
+
+## Environment Variables
+
+### .dev.vars File
+
+Store development secrets in `.dev.vars` (never commit this file):
+
+```bash .dev.vars
+API_KEY=dev-key-12345
+DATABASE_URL=postgres://localhost:5432/mydb
+SECRET_TOKEN=super-secret
+```
+
+These are automatically loaded and available as `env.API_KEY`, `env.DATABASE_URL`, etc.
+
+### Environment-Specific Vars
+
+Use `.dev.vars.<environment>` for environment-specific secrets:
+
+```bash .dev.vars.staging
+API_KEY=staging-key-67890
+DATABASE_URL=postgres://staging.example.com/mydb
+```
+
+Load with:
+
+```bash
+wrangler dev --env staging
+```
+
+### .env Files
+
+Wrangler also loads `.env` files if `.dev.vars` is not present:
+
+1. `.env.<environment>.local`
+2. `.env.local`
+3. `.env.<environment>`
+4. `.env`
+5. `process.env` (if `CLOUDFLARE_INCLUDE_PROCESS_ENV=true`)
+
+Disable `.env` loading:
+
+```bash
+export CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false
+```
+
+### Inline Variables
+
+Pass variables via CLI:
+
+```bash
+wrangler dev --var KEY:value --var API_URL:https://api.example.com
+```
+
+## Miniflare
+
+Wrangler dev uses Miniflare under the hood, which provides:
+
+<CardGroup cols={2}>
+  <Card title="workerd Runtime" icon="gears">
+    The same runtime as production Workers
+  </Card>
+  <Card title="Binding Simulation" icon="link">
+    Local KV, R2, D1, Durable Objects, Queues
+  </Card>
+  <Card title="Hot Reload" icon="bolt">
+    Instant updates on file changes
+  </Card>
+  <Card title="Debugging" icon="bug">
+    Chrome DevTools integration
+  </Card>
+</CardGroup>
+
+### Miniflare Options
+
+Access advanced Miniflare features through the API:
+
+```typescript
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+  script: `
+    export default {
+      async fetch(request, env) {
+        return new Response("Hello from Miniflare!");
+      }
+    }
+  `,
+  modules: true,
+  kvNamespaces: { MY_KV: "local-kv" },
+  d1Databases: { DB: "local-db" },
+  durableObjects: {
+    MY_DO: "MyDurableObject"
+  },
+  port: 8787,
+});
+
+const response = await mf.dispatchFetch("http://localhost");
+console.log(await response.text());
+
+await mf.dispose();
+```
+
+## Routes and Triggers
+
+### Routes
+
+Define routes for local development:
+
+```json wrangler.json
+{
+  "routes": [
+    "example.com/*",
+    "*.example.com/*"
+  ]
+}
+```
+
+Test with the route in your request:
+
+```bash
+curl -H "Host: example.com" http://localhost:8787/api
+```
+
+### Scheduled Events
+
+Test Cron Triggers locally:
+
+```bash
+wrangler dev --test-scheduled
+```
+
+Then visit `http://localhost:8787/__scheduled` in your browser to manually trigger scheduled events.
+
+```json wrangler.json
+{
+  "triggers": {
+    "crons": ["0 0 * * *"]
+  }
+}
+```
+
+## Advanced Configuration
+
+### Custom Entry Point
+
+```bash
+wrangler dev src/worker.ts
+```
+
+### Compatibility Settings
+
+```bash
+wrangler dev \
+  --compatibility-date 2024-01-01 \
+  --compatibility-flags nodejs_compat
+```
+
+### No Bundle Mode
+
+Skip the build step for pre-built Workers:
+
+```bash
+wrangler dev --no-bundle
+```
+
+### Minification
+
+```bash
+wrangler dev --minify
+```
+
+### Custom tsconfig
+
+```bash
+wrangler dev --tsconfig ./tsconfig.custom.json
+```
+
+## Multi-Worker Development
+
+Develop multiple Workers simultaneously:
+
+```bash
+wrangler dev --config wrangler.worker-a.json --config wrangler.worker-b.json
+```
+
+This is useful for testing service bindings between Workers.
+
+## Interactive Dev Session
+
+When running in an interactive terminal, wrangler dev shows hotkeys:
+
+- `b` - Open browser
+- `d` - Toggle DevTools
+- `l` - Toggle local/remote mode (if applicable)
+- `c` - Clear console
+- `x` - Exit
+
+Disable interactive session:
+
+```bash
+wrangler dev --show-interactive-dev-session false
+```
+
+## Troubleshooting
+
+### Port Already in Use
+
+If port 8787 is busy, wrangler will auto-assign a free port. Or specify a different port:
+
+```bash
+wrangler dev --port 8788
+```
+
+### WebContainer Limitation
+
+`wrangler dev` does not currently work in StackBlitz WebContainers. Use the Cloudflare Workers playground instead.
+
+### Live Reload Not Working
+
+- Ensure you're in local mode (not `--remote`)
+- Check that `--live-reload` is enabled
+- Verify your HTML pages can connect to the WebSocket
+
+### Binding Not Available
+
+If a binding isn't available in `env`:
+
+1. Check your `wrangler.json` configuration
+2. Verify `.dev.vars` for secret variables
+3. Ensure binding names match exactly (case-sensitive)
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/development/configuration">
+    Complete wrangler.json reference
+  </Card>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Test Workers with vitest-pool-workers
+  </Card>
+  <Card title="Debugging" icon="bug" href="/development/debugging">
+    Debug Workers with DevTools
+  </Card>
+  <Card title="Bindings" icon="link" href="/advanced/bindings">
+    Learn about Worker bindings
+  </Card>
+</CardGroup>

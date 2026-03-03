@@ -1,0 +1,608 @@
+---
+title: wrangler vectorize
+description: Manage Vectorize indexes
+---
+
+Vectorize is Cloudflare's vector database that enables you to build full-stack AI applications. Use these commands to manage your vector indexes and perform vector operations.
+
+## create
+
+Create a new Vectorize index.
+
+```bash
+wrangler vectorize create <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index to create (must be unique)
+</ParamField>
+
+### Configuration Options
+
+You must provide either a preset OR both dimensions and metric:
+
+<ParamField path="--preset" type="string">
+  The name of a preset representing an embeddings model. Vectorize will configure the dimensions and distance metric for you.
+  
+  Valid values:
+  - `@cf/baai/bge-small-en-v1.5`
+  - `@cf/baai/bge-base-en-v1.5`
+  - `@cf/baai/bge-large-en-v1.5`
+  - `openai/text-embedding-ada-002`
+  - `cohere/embed-multilingual-v2.0`
+</ParamField>
+
+<ParamField path="--dimensions" type="number">
+  The dimension size to configure this index for, based on the output dimensions of your ML model
+</ParamField>
+
+<ParamField path="--metric" type="string">
+  The distance metric to use for searching within the index.
+  
+  Valid values: `euclidean`, `cosine`, `dot-product`
+</ParamField>
+
+<ParamField path="--description" type="string">
+  An optional description for this index
+</ParamField>
+
+### Output Options
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### Worker Binding Options
+
+<ParamField path="--binding" type="string">
+  The binding name of this resource in your Worker
+</ParamField>
+
+<ParamField path="--update-config" type="boolean">
+  Automatically update your config file with the newly added resource
+</ParamField>
+
+### Examples
+
+#### Using a preset
+
+```bash
+wrangler vectorize create my-index --preset="@cf/baai/bge-base-en-v1.5"
+```
+
+#### Using custom dimensions and metric
+
+```bash
+wrangler vectorize create my-index --dimensions=768 --metric=cosine
+```
+
+#### With description
+
+```bash
+wrangler vectorize create my-index \
+  --preset="openai/text-embedding-ada-002" \
+  --description="Product embeddings for search"
+```
+
+## delete
+
+Delete a Vectorize index.
+
+```bash
+wrangler vectorize delete <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index to delete
+</ParamField>
+
+### Options
+
+<ParamField path="--force" type="boolean" default="false">
+  Skip confirmation (alias: `-y`)
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize delete my-index
+```
+
+<Warning>
+  Deleting an index permanently removes all vectors and metadata. This operation cannot be undone.
+</Warning>
+
+## list
+
+List all Vectorize indexes in your account.
+
+```bash
+wrangler vectorize list [options]
+```
+
+### Options
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize list
+```
+
+Displays a table with:
+- Index name
+- Dimensions
+- Distance metric
+- Description
+- Created date
+- Modified date
+
+## get
+
+Get details about a specific Vectorize index.
+
+```bash
+wrangler vectorize get <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize get my-index
+```
+
+## info
+
+Get additional details about an index including vector count and processing status.
+
+```bash
+wrangler vectorize info <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize info my-index
+```
+
+Displays:
+- Dimensions
+- Vector count
+- Processed up to mutation ID
+- Processed up to datetime
+
+## insert
+
+Insert vectors into a Vectorize index from a file.
+
+```bash
+wrangler vectorize insert <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--file" type="string" required>
+  A file containing line separated JSON (ndjson) vector objects
+</ParamField>
+
+<ParamField path="--batch-size" type="number" default="5000">
+  Number of vector records to include when sending to the Cloudflare API
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize insert my-index --file=vectors.ndjson
+```
+
+### Vector File Format
+
+The file should be in NDJSON format (newline-delimited JSON), with each line containing a vector object:
+
+```json
+{"id": "1", "values": [0.1, 0.2, 0.3], "metadata": {"text": "example"}}
+{"id": "2", "values": [0.4, 0.5, 0.6], "metadata": {"text": "another example"}}
+```
+
+<Note>
+  Insert operations are enqueued and processed asynchronously. Use the mutation ID returned to track processing status.
+</Note>
+
+## upsert
+
+Upsert (insert or update) vectors into a Vectorize index from a file.
+
+```bash
+wrangler vectorize upsert <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--file" type="string" required>
+  A file containing line separated JSON (ndjson) vector objects
+</ParamField>
+
+<ParamField path="--batch-size" type="number" default="5000">
+  Number of vector records to include in a single upsert batch when sending to the Cloudflare API
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize upsert my-index --file=vectors.ndjson --batch-size=1000
+```
+
+## query
+
+Query a Vectorize index to find similar vectors.
+
+```bash
+wrangler vectorize query <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Query Input Options
+
+You must provide either `--vector` OR `--vector-id` (but not both):
+
+<ParamField path="--vector" type="number[]">
+  Vector values to query the index with. Provide as space-separated numbers.
+</ParamField>
+
+<ParamField path="--vector-id" type="string">
+  Identifier for a vector in the index against which the index should be queried
+</ParamField>
+
+### Query Options
+
+<ParamField path="--top-k" type="number" default="5">
+  The number of results (nearest neighbors) to return
+</ParamField>
+
+<ParamField path="--return-values" type="boolean" default="false">
+  Specify if the vector values should be included in the results
+</ParamField>
+
+<ParamField path="--return-metadata" type="string" default="none">
+  Specify if the vector metadata should be included in the results.
+  
+  Valid values: `all`, `indexed`, `none`
+</ParamField>
+
+<ParamField path="--namespace" type="string">
+  Filter the query results based on this namespace
+</ParamField>
+
+<ParamField path="--filter" type="string">
+  Filter the query results based on metadata. Provide as a JSON string.
+</ParamField>
+
+### Examples
+
+#### Query by vector
+
+```bash
+wrangler vectorize query my-index --vector 0.1 0.2 0.3 0.4 --top-k=10
+```
+
+#### Query by vector ID
+
+```bash
+wrangler vectorize query my-index --vector-id="vector-123" --top-k=5
+```
+
+#### Query with metadata
+
+```bash
+wrangler vectorize query my-index \
+  --vector 0.1 0.2 0.3 \
+  --return-metadata=all \
+  --return-values
+```
+
+#### Query from file
+
+```bash
+wrangler vectorize query my-index --vector $(jq -r '.[]' data.json | xargs)
+```
+
+#### Query with filter
+
+```bash
+wrangler vectorize query my-index \
+  --vector 0.1 0.2 0.3 \
+  --filter '{"category": "product", "price": {"$lt": 100}}'
+```
+
+## get-by-ids
+
+Get specific vectors from an index by their IDs.
+
+```bash
+wrangler vectorize get-by-ids <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--ids" type="string[]" required>
+  Vector identifiers to fetch from the index. Provide as space-separated values.
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize get-by-ids my-index --ids vector-1 vector-2 vector-3
+```
+
+## delete-by-ids
+
+Delete specific vectors from an index by their IDs.
+
+```bash
+wrangler vectorize delete-by-ids <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--ids" type="string[]" required>
+  Vector identifiers to delete from the index. Provide as space-separated values.
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize delete-by-ids my-index --ids vector-1 vector-2 vector-3
+```
+
+<Note>
+  Delete operations are enqueued and processed asynchronously. Use the mutation ID returned to track processing status.
+</Note>
+
+## Metadata Indexes
+
+Metadata indexes enable efficient filtering on vector metadata properties.
+
+<Accordion title="create-metadata-index">
+
+Enable metadata filtering on a specified property.
+
+```bash
+wrangler vectorize create-metadata-index <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--property-name" type="string" required>
+  The name of the metadata property to index
+</ParamField>
+
+<ParamField path="--type" type="string" required>
+  The type of metadata property to index.
+  
+  Valid values: `string`, `number`, `boolean`
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize create-metadata-index my-index \
+  --property-name="category" \
+  --type="string"
+```
+
+</Accordion>
+
+<Accordion title="list-metadata-index">
+
+List metadata properties on which filtering is enabled.
+
+```bash
+wrangler vectorize list-metadata-index <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--json" type="boolean" default="false">
+  Return output as clean JSON
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize list-metadata-index my-index
+```
+
+</Accordion>
+
+<Accordion title="delete-metadata-index">
+
+Delete a metadata index.
+
+```bash
+wrangler vectorize delete-metadata-index <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Vectorize index
+</ParamField>
+
+### Options
+
+<ParamField path="--property-name" type="string" required>
+  The name of the metadata property to remove from indexing
+</ParamField>
+
+### Example
+
+```bash
+wrangler vectorize delete-metadata-index my-index --property-name="category"
+```
+
+</Accordion>
+
+## Configuration
+
+Add a Vectorize index to your Worker:
+
+```json wrangler.json
+{
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "my-index"
+    }
+  ]
+}
+```
+
+Use it in your Worker:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    // Insert vectors
+    const vectors = [
+      {
+        id: '1',
+        values: [0.1, 0.2, 0.3],
+        metadata: { text: 'Hello world' }
+      }
+    ];
+    
+    await env.VECTORIZE.insert(vectors);
+    
+    // Query vectors
+    const results = await env.VECTORIZE.query(
+      [0.1, 0.2, 0.3],
+      { topK: 5, returnMetadata: true }
+    );
+    
+    return Response.json(results);
+  },
+};
+```
+
+## Metadata Filtering
+
+When querying vectors, you can filter results based on metadata:
+
+### Basic Equality
+
+```json
+{
+  "category": "product",
+  "active": true
+}
+```
+
+### Comparison Operators
+
+```json
+{
+  "price": { "$lt": 100 },
+  "rating": { "$gte": 4.5 }
+}
+```
+
+Supported operators:
+- `$eq` - equals
+- `$ne` - not equals
+- `$lt` - less than
+- `$lte` - less than or equal
+- `$gt` - greater than
+- `$gte` - greater than or equal
+
+### Array Operators
+
+```json
+{
+  "category": { "$in": ["electronics", "computers"] },
+  "tag": { "$nin": ["deprecated", "archived"] }
+}
+```
+
+### Nested Properties
+
+```json
+{
+  "user.age": { "$gte": 18 },
+  "user.country": "US"
+}
+```
+
+## Rate Limits and Batch Processing
+
+- Insert/Upsert operations are limited to 5,000 vectors per batch by default
+- Total upload limit during beta: 100,000 vectors per run
+- Operations are processed asynchronously - use mutation IDs to track progress
+- The global Cloudflare API rate limit is 1,200 requests per 5 minutes
+
+## Best Practices
+
+1. **Choose the right metric**: Use `cosine` for normalized vectors, `euclidean` for absolute distances, and `dot-product` for similarity scores.
+
+2. **Index metadata selectively**: Only create metadata indexes for properties you'll filter on frequently.
+
+3. **Batch operations**: Use larger batch sizes (up to 5,000) for better performance when inserting many vectors.
+
+4. **Use presets when possible**: Presets automatically configure optimal settings for popular embedding models.
+
+5. **Monitor mutations**: Track mutation IDs to ensure your insert/upsert/delete operations complete successfully.

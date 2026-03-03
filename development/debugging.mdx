@@ -1,0 +1,711 @@
+---
+title: Debugging
+description: Debug Workers with Chrome DevTools and logging
+---
+
+Debug your Workers using Chrome DevTools, VS Code, and logging tools.
+
+## Chrome DevTools
+
+### Start Dev Server with Debugging
+
+```bash
+wrangler dev
+```
+
+Wrangler automatically starts an inspector server on port 9229 (or the next available port).
+
+### Connect DevTools
+
+<Steps>
+  <Step title="Start wrangler dev">
+    ```bash
+    wrangler dev
+    ```
+
+    You'll see:
+    ```
+    ⎔ Starting local server...
+    ⎔ Debugger listening on ws://127.0.0.1:9229
+    ```
+  </Step>
+
+  <Step title="Open Chrome DevTools">
+    In Chrome, navigate to:
+    ```
+    chrome://inspect
+    ```
+  </Step>
+
+  <Step title="Click 'inspect'">
+    Under "Remote Target", click **inspect** next to your Worker.
+  </Step>
+
+  <Step title="Set breakpoints">
+    Open the Sources tab, find your Worker code, and set breakpoints.
+  </Step>
+
+  <Step title="Trigger your Worker">
+    Send a request to your Worker:
+    ```bash
+    curl http://localhost:8787
+    ```
+
+    Execution pauses at your breakpoints.
+  </Step>
+</Steps>
+
+### DevTools Features
+
+<CardGroup cols={2}>
+  <Card title="Console" icon="terminal">
+    View `console.log()` output and errors
+  </Card>
+  <Card title="Sources" icon="code">
+    Set breakpoints and step through code
+  </Card>
+  <Card title="Network" icon="globe">
+    Inspect fetch requests and responses
+  </Card>
+  <Card title="Memory" icon="memory">
+    Profile memory usage and heap snapshots
+  </Card>
+</CardGroup>
+
+## VS Code Debugging
+
+### Configuration
+
+Create `.vscode/launch.json`:
+
+```json .vscode/launch.json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Wrangler Dev",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/wrangler",
+      "args": ["dev"],
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Attach to Worker",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}
+```
+
+### Start Debugging
+
+<Tabs>
+  <Tab title="Launch Mode">
+    1. Open the Debug panel (Cmd/Ctrl + Shift + D)
+    2. Select **Wrangler Dev** from the dropdown
+    3. Click the green play button or press F5
+    4. Set breakpoints in your Worker code
+    5. Trigger your Worker
+  </Tab>
+
+  <Tab title="Attach Mode">
+    1. Start wrangler dev in a terminal:
+       ```bash
+       wrangler dev
+       ```
+    2. Open the Debug panel
+    3. Select **Attach to Worker**
+    4. Click the green play button
+    5. Set breakpoints and debug
+  </Tab>
+</Tabs>
+
+## Logging
+
+### Console Logging
+
+Standard console methods work in Workers:
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env, ctx) {
+    console.log("Request received:", request.url);
+    console.warn("Warning: deprecated API used");
+    console.error("Error occurred");
+    console.debug("Debug info:", { request });
+
+    return new Response("OK");
+  }
+}
+```
+
+Output appears in:
+- `wrangler dev` terminal
+- Chrome DevTools console
+- Production logs (via Logpush/Tail Workers)
+
+### Structured Logging
+
+```typescript src/index.ts
+function log(level: string, message: string, data?: any) {
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    message,
+    ...data
+  }));
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    log("info", "Request started", {
+      url: request.url,
+      method: request.method,
+    });
+
+    try {
+      const response = await handleRequest(request, env);
+      log("info", "Request completed", {
+        status: response.status,
+      });
+      return response;
+    } catch (error) {
+      log("error", "Request failed", {
+        error: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
+  }
+}
+```
+
+### Log Levels
+
+Control log verbosity:
+
+```bash
+wrangler dev --log-level debug
+```
+
+Available levels:
+- `debug` - All logs including debug info
+- `info` - Informational messages
+- `log` - Standard logs
+- `warn` - Warnings only
+- `error` - Errors only
+- `none` - No logs
+
+Or in configuration:
+
+```json wrangler.json
+{
+  "dev": {
+    "log_level": "debug"
+  }
+}
+```
+
+## Breakpoint Debugging
+
+### Setting Breakpoints
+
+In your code:
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env, ctx) {
+    // Execution pauses here when debugger is attached
+    debugger;
+
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    if (path === "/debug") {
+      // Set a conditional breakpoint here
+      debugger;
+    }
+
+    return new Response("OK");
+  }
+}
+```
+
+Or use DevTools to set breakpoints visually.
+
+### Conditional Breakpoints
+
+Right-click a line number in DevTools → "Add conditional breakpoint":
+
+```javascript
+path === "/api" && request.method === "POST"
+```
+
+### Watch Expressions
+
+Add watch expressions in DevTools to monitor variables:
+
+```javascript
+request.url
+request.headers.get("Authorization")
+env.MY_KV
+```
+
+## Inspector Configuration
+
+### Custom Inspector Port
+
+```bash
+wrangler dev --inspector-port 9230
+```
+
+Or in configuration:
+
+```json wrangler.json
+{
+  "dev": {
+    "inspector": {
+      "port": 9230
+    }
+  }
+}
+```
+
+### Custom Inspector Host
+
+```bash
+wrangler dev --inspector-ip 0.0.0.0
+```
+
+```json wrangler.json
+{
+  "dev": {
+    "inspector": {
+      "ip": "0.0.0.0",
+      "port": 9229
+    }
+  }
+}
+```
+
+### Disable Inspector
+
+```json wrangler.json
+{
+  "dev": {
+    "inspector": false
+  }
+}
+```
+
+## Production Debugging
+
+### Tail Workers
+
+Stream real-time logs from production Workers:
+
+```bash
+wrangler tail
+```
+
+For specific events:
+
+```bash
+wrangler tail --status error
+wrangler tail --method POST
+wrangler tail --header "User-Agent: *Chrome*"
+```
+
+Sample traffic:
+
+```bash
+wrangler tail --sampling-rate 0.1  # 10% of requests
+```
+
+### Tail Worker Consumers
+
+Create a Worker to process logs:
+
+```typescript tail-consumer.ts
+export default {
+  async tail(events, env, ctx) {
+    for (const event of events) {
+      console.log("Event:", {
+        timestamp: event.timestamp,
+        outcome: event.outcome,
+        logs: event.logs,
+        exceptions: event.exceptions,
+      });
+
+      // Send to external logging service
+      ctx.waitUntil(
+        fetch("https://logs.example.com", {
+          method: "POST",
+          body: JSON.stringify(event),
+        })
+      );
+    }
+  }
+}
+```
+
+Configure in `wrangler.json`:
+
+```json wrangler.json
+{
+  "tail_consumers": [
+    {
+      "service": "tail-consumer-worker"
+    }
+  ]
+}
+```
+
+### Logpush
+
+Forward logs to external services (Enterprise only):
+
+```json wrangler.json
+{
+  "logpush": true
+}
+```
+
+Then configure in the Cloudflare dashboard to send to:
+- Datadog
+- New Relic
+- Splunk
+- Sumo Logic
+- S3
+- Google Cloud Storage
+
+## Error Tracking
+
+### Capture Errors
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await handleRequest(request, env);
+    } catch (error) {
+      // Log error details
+      console.error("Unhandled error:", {
+        message: error.message,
+        stack: error.stack,
+        url: request.url,
+        timestamp: Date.now(),
+      });
+
+      // Send to error tracking service
+      ctx.waitUntil(
+        fetch("https://errors.example.com/report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            error: error.message,
+            stack: error.stack,
+            url: request.url,
+          }),
+        })
+      );
+
+      return new Response("Internal Server Error", { status: 500 });
+    }
+  }
+}
+```
+
+### Integration with Error Services
+
+<Tabs>
+  <Tab title="Sentry">
+    ```typescript
+    import * as Sentry from "@sentry/browser";
+
+    Sentry.init({
+      dsn: env.SENTRY_DSN,
+      environment: env.ENVIRONMENT,
+    });
+
+    export default {
+      async fetch(request, env, ctx) {
+        try {
+          return await handleRequest(request, env);
+        } catch (error) {
+          Sentry.captureException(error);
+          throw error;
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Custom Service">
+    ```typescript
+    async function reportError(error: Error, context: any) {
+      await fetch("https://errors.example.com/api/errors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: error.message,
+          stack: error.stack,
+          context,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Debugging
+
+### Timing API
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env, ctx) {
+    const start = Date.now();
+
+    const response = await handleRequest(request, env);
+
+    const duration = Date.now() - start;
+    console.log(`Request took ${duration}ms`);
+
+    return response;
+  }
+}
+```
+
+### Custom Metrics
+
+```typescript src/index.ts
+function recordMetric(name: string, value: number, tags?: Record<string, string>) {
+  console.log(JSON.stringify({
+    type: "metric",
+    name,
+    value,
+    tags,
+    timestamp: Date.now(),
+  }));
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const start = Date.now();
+
+    try {
+      const response = await handleRequest(request, env);
+
+      recordMetric("request.duration", Date.now() - start, {
+        status: response.status.toString(),
+        method: request.method,
+      });
+
+      return response;
+    } catch (error) {
+      recordMetric("request.error", 1, {
+        error: error.name,
+      });
+      throw error;
+    }
+  }
+}
+```
+
+## Debugging Specific Features
+
+### Durable Objects
+
+```typescript src/counter.ts
+export class Counter {
+  state: DurableObjectState;
+  count: number = 0;
+
+  constructor(state: DurableObjectState) {
+    this.state = state;
+    console.log("[DO] Counter initialized", {
+      id: state.id.toString(),
+    });
+  }
+
+  async fetch(request: Request) {
+    console.log("[DO] Request received", {
+      id: this.state.id.toString(),
+      url: request.url,
+      count: this.count,
+    });
+
+    this.count++;
+    await this.state.storage.put("count", this.count);
+
+    return new Response(JSON.stringify({ count: this.count }));
+  }
+}
+```
+
+### Service Bindings
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env, ctx) {
+    console.log("Calling auth service");
+
+    const authResponse = await env.AUTH.fetch(request);
+
+    console.log("Auth service response:", {
+      status: authResponse.status,
+    });
+
+    return authResponse;
+  }
+}
+```
+
+### WebSockets
+
+```typescript src/index.ts
+export default {
+  async fetch(request, env, ctx) {
+    const upgradeHeader = request.headers.get("Upgrade");
+    if (upgradeHeader !== "websocket") {
+      return new Response("Expected WebSocket", { status: 400 });
+    }
+
+    const [client, server] = Object.values(new WebSocketPair());
+
+    server.accept();
+
+    server.addEventListener("message", (event) => {
+      console.log("WebSocket message:", event.data);
+      server.send(`Echo: ${event.data}`);
+    });
+
+    server.addEventListener("close", (event) => {
+      console.log("WebSocket closed:", {
+        code: event.code,
+        reason: event.reason,
+      });
+    });
+
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
+  }
+}
+```
+
+## Best Practices
+
+### 1. Use Descriptive Logs
+
+```typescript
+// Good
+console.log("User authentication failed", {
+  userId,
+  reason: "invalid_token",
+  timestamp: Date.now(),
+});
+
+// Bad
+console.log("error");
+```
+
+### 2. Don't Log Sensitive Data
+
+```typescript
+// Good
+console.log("Request headers:", {
+  contentType: request.headers.get("Content-Type"),
+});
+
+// Bad - exposes secrets!
+console.log("Request headers:", Object.fromEntries(request.headers));
+```
+
+### 3. Use Log Levels Appropriately
+
+```typescript
+console.debug("Detailed debug info"); // Development only
+console.log("Request processed"); // Normal operations
+console.warn("Deprecated API used"); // Potential issues
+console.error("Failed to process"); // Errors
+```
+
+### 4. Add Context to Errors
+
+```typescript
+try {
+  await processRequest(request);
+} catch (error) {
+  console.error("Processing failed", {
+    error: error.message,
+    url: request.url,
+    method: request.method,
+    timestamp: Date.now(),
+  });
+  throw error;
+}
+```
+
+### 5. Clean Up Debug Code
+
+Use environment variables:
+
+```typescript
+if (env.DEBUG) {
+  console.debug("Debug info:", data);
+}
+```
+
+## Troubleshooting
+
+### DevTools Not Connecting
+
+1. Check the inspector port:
+   ```bash
+   wrangler dev --inspector-port 9229
+   ```
+
+2. Verify no firewall blocking port 9229
+
+3. Try a different port:
+   ```bash
+   wrangler dev --inspector-port 9230
+   ```
+
+### Breakpoints Not Hitting
+
+1. Ensure source maps are enabled (default)
+2. Check that your code is actually running
+3. Verify breakpoint is on an executable line
+4. Clear DevTools cache and reload
+
+### Missing Logs
+
+1. Check log level:
+   ```bash
+   wrangler dev --log-level debug
+   ```
+
+2. Ensure `console.log()` is not commented out
+3. Verify logs appear in DevTools console
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Local Development" icon="laptop-code" href="/development/local-development">
+    Develop Workers locally
+  </Card>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Test Workers with vitest
+  </Card>
+
+</CardGroup>

@@ -1,0 +1,596 @@
+---
+title: Vite Plugin API
+description: Full-featured integration between Vite and Cloudflare Workers runtime.
+---
+
+The `@cloudflare/vite-plugin-cloudflare` package provides a Vite plugin for developing Cloudflare Workers and Pages applications with Vite's development server and build tooling.
+
+## Installation
+
+```bash
+npm install -D @cloudflare/vite-plugin-cloudflare
+```
+
+## Basic Usage
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [cloudflare()],
+});
+```
+
+## Plugin Configuration
+
+### `cloudflare(config?)`
+
+Creates the Cloudflare Vite plugin.
+
+<ParamField path="config" type="PluginConfig">
+  Plugin configuration options
+
+  <Expandable title="PluginConfig properties">
+    <ParamField path="configPath" type="string">
+      Path to Wrangler configuration file (defaults to auto-discovery)
+
+      ```typescript
+      cloudflare({
+        configPath: "./wrangler.toml",
+      })
+      ```
+    </ParamField>
+
+    <ParamField path="config" type="WorkerConfigCustomizer">
+      Customize Worker configuration programmatically
+
+      ```typescript
+      cloudflare({
+        config(workerConfig) {
+          // Mutate config in place
+          workerConfig.compatibility_date = "2024-01-01";
+        },
+      })
+
+      // Or return a partial config to merge
+      cloudflare({
+        config: {
+          name: "my-worker",
+          compatibility_flags: ["nodejs_compat"],
+        },
+      })
+      ```
+
+      <Expandable title="WorkerConfigCustomizer types">
+        ```typescript
+        type WorkerConfigCustomizer =
+          | Partial<WorkerConfig>
+          | ((config: WorkerConfig) => Partial<WorkerConfig> | void);
+        ```
+      </Expandable>
+    </ParamField>
+
+    <ParamField path="persistState" type="boolean | { path: string }" default="true">
+      Control state persistence for local development
+
+      ```typescript
+      // Disable persistence
+      cloudflare({ persistState: false })
+
+      // Custom path
+      cloudflare({ persistState: { path: "./.dev" } })
+      ```
+    </ParamField>
+
+    <ParamField path="inspectorPort" type="number | false">
+      Port for Chrome DevTools inspector, or `false` to disable
+
+      ```typescript
+      cloudflare({ inspectorPort: 9229 })
+      ```
+    </ParamField>
+
+    <ParamField path="remoteBindings" type="boolean" default="true">
+      Enable remote bindings during preview
+
+      ```typescript
+      cloudflare({ remoteBindings: false })
+      ```
+    </ParamField>
+
+    <ParamField path="auxiliaryWorkers" type="AuxiliaryWorkerConfig[]">
+      Additional workers to run alongside the main worker
+
+      ```typescript
+      cloudflare({
+        auxiliaryWorkers: [
+          {
+            configPath: "./workers/auth/wrangler.toml",
+            viteEnvironment: { name: "auth" },
+          },
+          {
+            config: {
+              name: "api",
+              main: "./workers/api/index.ts",
+            },
+            viteEnvironment: { name: "api" },
+          },
+        ],
+      })
+      ```
+
+      <Expandable title="AuxiliaryWorkerConfig">
+        <ParamField path="configPath" type="string">
+          Path to Wrangler config for this worker
+        </ParamField>
+
+        <ParamField path="config" type="WorkerConfigCustomizer">
+          Inline or customized worker config
+        </ParamField>
+
+        <ParamField path="viteEnvironment" type="object">
+          <ParamField path="name" type="string">
+            Vite environment name for this worker
+          </ParamField>
+
+          <ParamField path="childEnvironments" type="string[]">
+            Child Vite environments
+          </ParamField>
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField path="experimental" type="object">
+      Experimental features
+
+      <Expandable title="Experimental options">
+        <ParamField path="headersAndRedirectsDevModeSupport" type="boolean">
+          Support for `_headers` and `_redirects` files in dev mode
+
+          ```typescript
+          cloudflare({
+            experimental: {
+              headersAndRedirectsDevModeSupport: true,
+            },
+          })
+          ```
+        </ParamField>
+
+        <ParamField path="prerenderWorker" type="AuxiliaryWorkerConfig">
+          Dedicated worker for prerendering
+
+          ```typescript
+          cloudflare({
+            experimental: {
+              prerenderWorker: {
+                configPath: "./workers/prerender/wrangler.toml",
+              },
+            },
+          })
+          ```
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="plugins" type="Plugin[]">
+  Array of Vite plugins (the plugin returns multiple internal plugins)
+</ResponseField>
+
+---
+
+## Worker Configuration
+
+### `WorkerConfig`
+
+The Worker configuration object extends Wrangler's configuration with Vite-specific options.
+
+<Expandable title="WorkerConfig properties (subset)">
+  <ParamField path="name" type="string">
+    Worker name
+  </ParamField>
+
+  <ParamField path="main" type="string">
+    Entry point path
+  </ParamField>
+
+  <ParamField path="compatibility_date" type="string">
+    Compatibility date
+  </ParamField>
+
+  <ParamField path="compatibility_flags" type="string[]">
+    Compatibility flags
+  </ParamField>
+
+  <ParamField path="vars" type="Record<string, string>">
+    Environment variables
+  </ParamField>
+
+  <ParamField path="kv_namespaces" type="KVNamespace[]">
+    KV namespace bindings
+  </ParamField>
+
+  <ParamField path="durable_objects" type="object">
+    Durable Object bindings
+  </ParamField>
+
+  <ParamField path="r2_buckets" type="R2Bucket[]">
+    R2 bucket bindings
+  </ParamField>
+
+  <ParamField path="d1_databases" type="D1Database[]">
+    D1 database bindings
+  </ParamField>
+
+  <ParamField path="services" type="Service[]">
+    Service bindings
+  </ParamField>
+
+  <ParamField path="assets" type="object">
+    Workers Assets configuration
+  </ParamField>
+</Expandable>
+
+See [Configuration Schema](/api/configuration-schema) for the complete reference.
+
+---
+
+## Utilities
+
+### `getLocalWorkerdCompatibilityDate()`
+
+Get the recommended compatibility date for the local workerd version.
+
+```typescript
+import { getLocalWorkerdCompatibilityDate } from "@cloudflare/vite-plugin-cloudflare";
+
+const { date } = getLocalWorkerdCompatibilityDate();
+console.log(date); // "2024-01-01"
+```
+
+<ResponseField name="result" type="{ date: string }">
+  Object containing the recommended compatibility date
+</ResponseField>
+
+---
+
+## Development Examples
+
+### Basic Worker
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      configPath: "./wrangler.toml",
+    }),
+  ],
+});
+```
+
+```typescript
+// src/index.ts
+export default {
+  async fetch(request, env, ctx) {
+    return new Response("Hello from Vite + Cloudflare!");
+  },
+};
+```
+
+### With Environment Overrides
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      configPath: "./wrangler.toml",
+      config(workerConfig) {
+        // Add development-only bindings
+        if (process.env.NODE_ENV === "development") {
+          workerConfig.vars = {
+            ...workerConfig.vars,
+            DEBUG: "true",
+          };
+        }
+      },
+    }),
+  ],
+});
+```
+
+### Multi-Worker Setup
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      // Main worker
+      configPath: "./wrangler.toml",
+      viteEnvironment: {
+        name: "main",
+      },
+      
+      // Auxiliary workers
+      auxiliaryWorkers: [
+        {
+          configPath: "./workers/auth/wrangler.toml",
+          viteEnvironment: { name: "auth" },
+        },
+        {
+          configPath: "./workers/api/wrangler.toml",
+          viteEnvironment: { name: "api" },
+        },
+      ],
+    }),
+  ],
+});
+```
+
+```typescript
+// src/index.ts (main worker)
+export default {
+  async fetch(request, env, ctx) {
+    // Call auxiliary worker via service binding
+    const authResponse = await env.AUTH_SERVICE.fetch(request);
+    
+    if (!authResponse.ok) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    
+    return new Response("Authenticated!");
+  },
+};
+```
+
+### With Custom Persistence
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      persistState: {
+        path: "./.dev/state",
+      },
+    }),
+  ],
+});
+```
+
+### Pages Project
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      config: {
+        name: "my-pages-project",
+        compatibility_date: "2024-01-01",
+        assets: {
+          directory: "./public",
+        },
+      },
+    }),
+  ],
+});
+```
+
+### With Inspector
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      inspectorPort: 9229,
+    }),
+  ],
+});
+```
+
+Then connect Chrome DevTools to `chrome://inspect`.
+
+---
+
+## Build Configuration
+
+The plugin automatically configures Vite for Workers compatibility:
+
+- Sets `ssr.target` to `"webworker"`
+- Configures resolve conditions: `["workerd", "worker", "browser"]`
+- Handles Workers-specific module resolution
+- Bundles the Worker for deployment
+
+### Custom Build Options
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [cloudflare()],
+  
+  build: {
+    target: "esnext",
+    minify: true,
+    sourcemap: true,
+  },
+  
+  resolve: {
+    alias: {
+      "@": "/src",
+    },
+  },
+});
+```
+
+---
+
+## Environment Variables
+
+The plugin loads environment variables from `.env` files with `CLOUDFLARE_` prefix:
+
+```bash
+# .env
+CLOUDFLARE_ENV=staging
+CLOUDFLARE_API_KEY=secret
+```
+
+Access in config:
+
+```typescript
+// vite.config.ts
+import { defineConfig, loadEnv } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "CLOUDFLARE_");
+  
+  return {
+    plugins: [
+      cloudflare({
+        config: {
+          vars: {
+            API_KEY: env.CLOUDFLARE_API_KEY,
+          },
+        },
+      }),
+    ],
+  };
+});
+```
+
+---
+
+## TypeScript Support
+
+The plugin provides full TypeScript support:
+
+```typescript
+import type { PluginConfig, WorkerConfig } from "@cloudflare/vite-plugin-cloudflare";
+
+const workerConfig: WorkerConfig = {
+  name: "my-worker",
+  main: "src/index.ts",
+  compatibility_date: "2024-01-01",
+};
+
+const pluginConfig: PluginConfig = {
+  config: workerConfig,
+  persistState: true,
+};
+```
+
+---
+
+## Advanced Usage
+
+### Dynamic Configuration
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig(({ command, mode }) => {
+  const isDev = command === "serve";
+  const isProd = mode === "production";
+  
+  return {
+    plugins: [
+      cloudflare({
+        config(workerConfig) {
+          if (isDev) {
+            // Development overrides
+            workerConfig.vars = {
+              ...workerConfig.vars,
+              LOG_LEVEL: "debug",
+            };
+          }
+          
+          if (isProd) {
+            // Production optimizations
+            return {
+              minify: true,
+            };
+          }
+        },
+      }),
+    ],
+  };
+});
+```
+
+### Conditional Bindings
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      config(workerConfig) {
+        // Add analytics only in production
+        if (process.env.ENABLE_ANALYTICS === "true") {
+          workerConfig.analytics_engine_datasets = [
+            { binding: "ANALYTICS" },
+          ];
+        }
+      },
+    }),
+  ],
+});
+```
+
+### Custom Worker Entry
+
+```typescript
+// vite.config.ts
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin-cloudflare";
+
+export default defineConfig({
+  plugins: [
+    cloudflare({
+      config: {
+        name: "custom-worker",
+        main: "./src/worker/index.ts",
+      },
+    }),
+  ],
+  
+  build: {
+    rollupOptions: {
+      input: "./src/worker/index.ts",
+    },
+  },
+});
+```

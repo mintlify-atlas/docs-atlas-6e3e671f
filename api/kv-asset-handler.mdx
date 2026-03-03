@@ -1,0 +1,553 @@
+---
+title: KV Asset Handler API
+description: Serve static assets from KV storage in Cloudflare Workers.
+---
+
+The `@cloudflare/kv-asset-handler` package provides utilities for serving static assets from Workers KV, commonly used with Workers Sites.
+
+## Installation
+
+```bash
+npm install @cloudflare/kv-asset-handler
+```
+
+## Core Functions
+
+### `getAssetFromKV()`
+
+Fetch and serve a static asset from KV storage.
+
+```typescript
+import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await getAssetFromKV(
+        {
+          request,
+          waitUntil: ctx.waitUntil.bind(ctx),
+        },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        }
+      );
+    } catch (e) {
+      return new Response("Not Found", { status: 404 });
+    }
+  },
+};
+```
+
+<ParamField path="event" type="object" required>
+  Event-like object with request and waitUntil
+
+  <Expandable title="Event properties">
+    <ParamField path="request" type="Request" required>
+      Incoming request object
+    </ParamField>
+
+    <ParamField path="waitUntil" type="(promise: Promise<unknown>) => void" required>
+      Function to extend execution for async tasks
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="options" type="Partial<Options>">
+  Configuration options
+
+  <Expandable title="Options properties">
+    <ParamField path="ASSET_NAMESPACE" type="KVNamespace" required>
+      KV namespace containing the static assets
+    </ParamField>
+
+    <ParamField path="ASSET_MANIFEST" type="AssetManifestType | string" required>
+      Manifest mapping paths to hashed filenames
+    </ParamField>
+
+    <ParamField path="cacheControl" type="CacheControl | ((req: Request) => CacheControl)">
+      Cache control configuration
+
+      <Expandable title="CacheControl properties">
+        <ParamField path="browserTTL" type="number | null">
+          Browser cache TTL in seconds (null = no caching)
+        </ParamField>
+
+        <ParamField path="edgeTTL" type="number | null">
+          Edge cache TTL in seconds (default: 172800 = 2 days)
+        </ParamField>
+
+        <ParamField path="bypassCache" type="boolean">
+          Bypass Cloudflare cache (default: false)
+        </ParamField>
+      </Expandable>
+    </ParamField>
+
+    <ParamField path="mapRequestToAsset" type="(req: Request, options?: Partial<Options>) => Request">
+      Custom function to map requests to asset paths
+    </ParamField>
+
+    <ParamField path="defaultMimeType" type="string" default="text/plain">
+      Default MIME type for files without extension
+    </ParamField>
+
+    <ParamField path="defaultDocument" type="string" default="index.html">
+      Default document for directory requests
+    </ParamField>
+
+    <ParamField path="pathIsEncoded" type="boolean" default="false">
+      Whether request paths are URL-encoded
+    </ParamField>
+
+    <ParamField path="defaultETag" type="'strong' | 'weak'" default="strong">
+      ETag validation type
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="response" type="Promise<Response>">
+  HTTP response with the asset content
+</ResponseField>
+
+**Errors:**
+- Throws `NotFoundError` if asset doesn't exist
+- Throws `MethodNotAllowedError` for non-GET/HEAD requests
+- Throws `InternalError` for KV namespace issues
+
+---
+
+### `mapRequestToAsset()`
+
+Map a request URL to an asset path in KV.
+
+```typescript
+import { mapRequestToAsset, getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    return await getAssetFromKV(
+      { request, waitUntil: ctx.waitUntil.bind(ctx) },
+      {
+        ASSET_NAMESPACE: env.__STATIC_CONTENT,
+        ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        mapRequestToAsset: mapRequestToAsset,
+      }
+    );
+  },
+};
+```
+
+<ParamField path="request" type="Request" required>
+  Original request
+</ParamField>
+
+<ParamField path="options" type="Partial<Options>">
+  Asset handler options
+</ParamField>
+
+<ResponseField name="request" type="Request">
+  Modified request with mapped asset path
+</ResponseField>
+
+**Behavior:**
+- Appends `defaultDocument` to directory paths (e.g., `/about/` → `/about/index.html`)
+- Adds `defaultDocument` to paths without extensions (e.g., `/about` → `/about/index.html`)
+- Preserves paths with file extensions as-is
+
+---
+
+### `serveSinglePageApp()`
+
+Serve a single-page application (SPA), returning index.html for all HTML requests.
+
+```typescript
+import { serveSinglePageApp, getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    return await getAssetFromKV(
+      { request, waitUntil: ctx.waitUntil.bind(ctx) },
+      {
+        ASSET_NAMESPACE: env.__STATIC_CONTENT,
+        ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        mapRequestToAsset: serveSinglePageApp,
+      }
+    );
+  },
+};
+```
+
+<ParamField path="request" type="Request" required>
+  Original request
+</ParamField>
+
+<ParamField path="options" type="Partial<Options>">
+  Asset handler options
+</ParamField>
+
+<ResponseField name="request" type="Request">
+  Modified request, mapping HTML requests to root index.html
+</ResponseField>
+
+**Behavior:**
+- Static assets (JS, CSS, images) are served normally
+- Requests for HTML files return the root `index.html`
+- Perfect for client-side routing in React, Vue, etc.
+
+---
+
+## Error Classes
+
+### `NotFoundError`
+
+Thrown when an asset is not found in KV.
+
+```typescript
+import { getAssetFromKV, NotFoundError } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await getAssetFromKV(
+        { request, waitUntil: ctx.waitUntil.bind(ctx) },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        }
+      );
+    } catch (e) {
+      if (e instanceof NotFoundError) {
+        return new Response("Custom 404 page", { status: 404 });
+      }
+      throw e;
+    }
+  },
+};
+```
+
+<ResponseField name="status" type="number" default="404">
+  HTTP status code
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error message
+</ResponseField>
+
+---
+
+### `MethodNotAllowedError`
+
+Thrown for unsupported HTTP methods.
+
+```typescript
+import { getAssetFromKV, MethodNotAllowedError } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await getAssetFromKV(
+        { request, waitUntil: ctx.waitUntil.bind(ctx) },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        }
+      );
+    } catch (e) {
+      if (e instanceof MethodNotAllowedError) {
+        return new Response("Method not allowed", { status: 405 });
+      }
+      throw e;
+    }
+  },
+};
+```
+
+<ResponseField name="status" type="number" default="405">
+  HTTP status code
+</ResponseField>
+
+---
+
+### `InternalError`
+
+Thrown for internal KV or configuration errors.
+
+```typescript
+import { getAssetFromKV, InternalError } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await getAssetFromKV(
+        { request, waitUntil: ctx.waitUntil.bind(ctx) },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        }
+      );
+    } catch (e) {
+      if (e instanceof InternalError) {
+        return new Response("Internal error", { status: 500 });
+      }
+      throw e;
+    }
+  },
+};
+```
+
+<ResponseField name="status" type="number" default="500">
+  HTTP status code
+</ResponseField>
+
+---
+
+## Usage Examples
+
+### Basic Static Site
+
+```typescript
+import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await getAssetFromKV(
+        { request, waitUntil: ctx.waitUntil.bind(ctx) },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        }
+      );
+    } catch (e) {
+      return new Response("Not Found", { status: 404 });
+    }
+  },
+};
+```
+
+### Custom Cache Control
+
+```typescript
+import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    return await getAssetFromKV(
+      { request, waitUntil: ctx.waitUntil.bind(ctx) },
+      {
+        ASSET_NAMESPACE: env.__STATIC_CONTENT,
+        ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        cacheControl: {
+          browserTTL: 60 * 60 * 24, // 1 day
+          edgeTTL: 60 * 60 * 24 * 7, // 7 days
+          bypassCache: false,
+        },
+      }
+    );
+  },
+};
+```
+
+### Dynamic Cache Control
+
+```typescript
+import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    return await getAssetFromKV(
+      { request, waitUntil: ctx.waitUntil.bind(ctx) },
+      {
+        ASSET_NAMESPACE: env.__STATIC_CONTENT,
+        ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        cacheControl: (request) => {
+          const url = new URL(request.url);
+          
+          // Cache images longer
+          if (url.pathname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+            return {
+              browserTTL: 60 * 60 * 24 * 30, // 30 days
+              edgeTTL: 60 * 60 * 24 * 30,
+              bypassCache: false,
+            };
+          }
+          
+          // Don't cache HTML
+          if (url.pathname.endsWith(".html")) {
+            return {
+              browserTTL: null,
+              edgeTTL: 60 * 60, // 1 hour
+              bypassCache: false,
+            };
+          }
+          
+          // Default cache
+          return {
+            browserTTL: 60 * 60 * 24, // 1 day
+            edgeTTL: 60 * 60 * 24 * 7, // 7 days
+            bypassCache: false,
+          };
+        },
+      }
+    );
+  },
+};
+```
+
+### Single Page Application
+
+```typescript
+import { getAssetFromKV, serveSinglePageApp } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await getAssetFromKV(
+        { request, waitUntil: ctx.waitUntil.bind(ctx) },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+          mapRequestToAsset: serveSinglePageApp,
+        }
+      );
+    } catch (e) {
+      return new Response("Not Found", { status: 404 });
+    }
+  },
+};
+```
+
+### API + Static Assets
+
+```typescript
+import { getAssetFromKV, NotFoundError } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    
+    // Handle API requests
+    if (url.pathname.startsWith("/api/")) {
+      return handleApiRequest(request, env);
+    }
+    
+    // Serve static assets
+    try {
+      return await getAssetFromKV(
+        { request, waitUntil: ctx.waitUntil.bind(ctx) },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        }
+      );
+    } catch (e) {
+      if (e instanceof NotFoundError) {
+        // Handle 404s differently for API vs assets
+        if (url.pathname.startsWith("/api/")) {
+          return new Response(JSON.stringify({ error: "Not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response("Page not found", { status: 404 });
+      }
+      throw e;
+    }
+  },
+};
+
+function handleApiRequest(request, env) {
+  return new Response(JSON.stringify({ message: "API response" }), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+```
+
+### Custom 404 Page
+
+```typescript
+import { getAssetFromKV, NotFoundError } from "@cloudflare/kv-asset-handler";
+
+const CUSTOM_404_HTML = `
+<!DOCTYPE html>
+<html>
+  <head><title>404 Not Found</title></head>
+  <body><h1>Page not found</h1></body>
+</html>
+`;
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await getAssetFromKV(
+        { request, waitUntil: ctx.waitUntil.bind(ctx) },
+        {
+          ASSET_NAMESPACE: env.__STATIC_CONTENT,
+          ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+        }
+      );
+    } catch (e) {
+      if (e instanceof NotFoundError) {
+        return new Response(CUSTOM_404_HTML, {
+          status: 404,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+      throw e;
+    }
+  },
+};
+```
+
+### With Custom Headers
+
+```typescript
+import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+export default {
+  async fetch(request, env, ctx) {
+    const response = await getAssetFromKV(
+      { request, waitUntil: ctx.waitUntil.bind(ctx) },
+      {
+        ASSET_NAMESPACE: env.__STATIC_CONTENT,
+        ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+      }
+    );
+    
+    // Add security headers
+    const headers = new Headers(response.headers);
+    headers.set("X-Frame-Options", "DENY");
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  },
+};
+```
+
+---
+
+## Type Definitions
+
+```typescript
+import type {
+  Options,
+  CacheControl,
+  AssetManifestType,
+} from "@cloudflare/kv-asset-handler";
+
+const options: Partial<Options> = {
+  ASSET_NAMESPACE: env.__STATIC_CONTENT,
+  ASSET_MANIFEST: env.__STATIC_CONTENT_MANIFEST,
+  cacheControl: {
+    browserTTL: 3600,
+    edgeTTL: 86400,
+    bypassCache: false,
+  },
+};
+```

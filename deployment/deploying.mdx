@@ -1,0 +1,290 @@
+---
+title: "Deploying Workers"
+description: "Deploy your Cloudflare Worker with version management and traffic splitting"
+---
+
+## Overview
+
+Cloudflare Workers supports two deployment methods:
+
+1. **Standard Deploy** - Upload and immediately deploy to 100% of traffic
+2. **Gradual Rollouts** - Upload versions and control traffic distribution
+
+## Standard Deployment
+
+Deploy your Worker directly to production:
+
+```bash
+wrangler deploy
+```
+
+This command:
+- Bundles your Worker code
+- Uploads it to Cloudflare
+- Deploys immediately to 100% of traffic
+- Updates all configured routes and triggers
+
+### Deployment Options
+
+```bash
+wrangler deploy [script] [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--name <name>` | Worker name (overrides config) |
+| `--compatibility-date <date>` | Compatibility date for runtime |
+| `--compatibility-flags <flags>` | Compatibility flags |
+| `--minify` | Minify the Worker code |
+| `--no-bundle` | Skip bundling step |
+| `--dry-run` | Build without deploying |
+| `--outdir <path>` | Output directory for build |
+
+### Example Deployment
+
+```bash
+# Deploy with specific compatibility date
+wrangler deploy --compatibility-date 2024-01-01
+
+# Deploy with minification
+wrangler deploy --minify
+
+# Test build without deploying
+wrangler deploy --dry-run
+```
+
+## Gradual Rollouts (Versions)
+
+Gradual rollouts allow you to deploy new versions incrementally by splitting traffic between multiple versions.
+
+### Upload a Version
+
+First, upload your code as a new version without deploying:
+
+```bash
+wrangler versions upload
+```
+
+<Steps>
+  <Step title="Upload the version">
+    Create a new version with optional metadata:
+    
+    ```bash
+    wrangler versions upload \
+      --tag "v1.2.0" \
+      --message "Added new feature X"
+    ```
+  </Step>
+
+  <Step title="Review version details">
+    The upload returns a Version ID:
+    
+    ```
+    Worker Version ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    ```
+  </Step>
+
+  <Step title="Preview the version">
+    If preview is enabled, access your version at:
+    
+    ```
+    https://<short-version-id>-<worker-name>.<subdomain>.workers.dev
+    ```
+  </Step>
+</Steps>
+
+### Deploy Versions
+
+Deploy one or more versions with traffic splitting:
+
+```bash
+wrangler versions deploy
+```
+
+The command will interactively prompt you to:
+1. Select which versions to deploy
+2. Specify traffic percentage for each version
+3. Add an optional deployment message
+
+#### Deploy Specific Versions
+
+```bash
+# Deploy single version to 100%
+wrangler versions deploy --version-id <version-id>
+
+# Deploy two versions with traffic split
+wrangler versions deploy \
+  --version-id <version-1> --percentage 80 \
+  --version-id <version-2> --percentage 20
+```
+
+#### Shorthand Notation
+
+Use the `@` syntax for version-percentage pairs:
+
+```bash
+# Version 1 at 80%, Version 2 at 20%
+wrangler versions deploy <version-1>@80 <version-2>@20
+
+# Single version at 100%
+wrangler versions deploy <version-id>@100
+```
+
+### Version Upload Options
+
+```bash
+wrangler versions upload [script] [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--tag <tag>` | Version tag for identification |
+| `--message <message>` | Descriptive message for this version |
+| `--preview-alias <alias>` | Named alias for preview URL |
+| `--compatibility-date <date>` | Required: compatibility date |
+| `--no-bundle` | Skip bundling |
+| `--dry-run` | Build without uploading |
+
+<Warning>
+A `compatibility_date` is required when uploading versions. Set it in your `wrangler.json` or pass it via `--compatibility-date`.
+</Warning>
+
+## Traffic Splitting
+
+When deploying multiple versions, traffic percentages must total 100%:
+
+```bash
+# Valid: 70% + 30% = 100%
+wrangler versions deploy \
+  <version-a>@70 \
+  <version-b>@30
+
+# Valid: Auto-distribute remaining traffic
+wrangler versions deploy \
+  --version-id <version-a> --percentage 60
+  --version-id <version-b>  # Automatically receives 40%
+```
+
+### Progressive Rollout Example
+
+<Steps>
+  <Step title="Deploy canary (5%)">
+    ```bash
+    wrangler versions deploy \
+      <new-version>@5 \
+      <stable-version>@95
+    ```
+  </Step>
+
+  <Step title="Increase to 25%">
+    ```bash
+    wrangler versions deploy \
+      <new-version>@25 \
+      <stable-version>@75
+    ```
+  </Step>
+
+  <Step title="Roll out to 100%">
+    ```bash
+    wrangler versions deploy <new-version>@100
+    ```
+  </Step>
+</Steps>
+
+## Deployment Settings
+
+### Versioned Settings
+
+These settings are part of each version:
+- Worker code and modules
+- Compatibility date and flags
+- Bindings (KV, R2, D1, Durable Objects, etc.)
+- Environment variables
+- Secrets
+- Placement configuration
+- Cache settings
+
+### Non-Versioned Settings
+
+These settings apply globally and are not version-specific:
+- Logpush configuration
+- Tail consumers
+- Streaming tail consumers  
+- Observability settings
+
+Non-versioned settings are synced during `wrangler versions deploy`:
+
+```typescript
+// From versions/deploy.ts:559-624
+const maybeUndefinedSettings = {
+  logpush: config.logpush,
+  tail_consumers: config.tail_consumers,
+  streaming_tail_consumers: config.streaming_tail_consumers,
+  observability: config.observability,
+};
+```
+
+<Warning>
+Changes to non-versioned settings take effect after running `wrangler versions deploy`.
+</Warning>
+
+## Triggers and Routes
+
+Routes, custom domains, and cron schedules are managed separately:
+
+```bash
+# Deploy trigger changes
+wrangler triggers deploy
+```
+
+This is separate from version deployments to prevent accidental route changes during gradual rollouts.
+
+## Deployment Workflow Comparison
+
+### Standard Deploy
+
+```bash
+# One command to upload and deploy
+wrangler deploy
+```
+
+- ✅ Simple and fast
+- ✅ Automatic trigger updates
+- ❌ No gradual rollout
+- ❌ Immediate 100% traffic
+
+### Gradual Rollout
+
+```bash
+# Separate upload and deploy steps
+wrangler versions upload
+wrangler versions deploy
+```
+
+- ✅ Traffic splitting
+- ✅ Safe incremental rollouts
+- ✅ Version previews
+- ❌ More steps required
+- ❌ Separate trigger management
+
+## Best Practices
+
+1. **Use Versions for Production** - Gradual rollouts reduce risk
+2. **Add Metadata** - Use `--tag` and `--message` to track versions
+3. **Test in Preview** - Verify versions before deploying
+4. **Monitor Metrics** - Watch error rates during rollouts
+5. **Keep Stable Versions** - Maintain a known-good version for rollback
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Version Management" icon="code-branch" href="/deployment/versioning">
+    List and view version details
+  </Card>
+  <Card title="Rollbacks" icon="rotate-left" href="/deployment/rollbacks">
+    Roll back to previous versions
+  </Card>
+  <Card title="Secrets" icon="key" href="/deployment/secrets">
+    Manage Worker secrets
+  </Card>
+</CardGroup>

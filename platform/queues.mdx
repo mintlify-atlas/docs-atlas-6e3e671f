@@ -1,0 +1,500 @@
+---
+title: 'Queues'
+description: 'Manage message queues for asynchronous task processing'
+---
+
+## Overview
+
+Cloudflare Queues enables asynchronous message passing between Workers. Send messages to a queue and process them with consumer Workers at your own pace.
+
+## Queue Management
+
+### Create a Queue
+
+Create a new message queue:
+
+```bash
+wrangler queues create <name> [--delivery-delay-secs <seconds>] [--message-retention-period-secs <seconds>]
+```
+
+**Options:**
+- `<name>` - Queue name (required)
+- `--delivery-delay-secs` - Message delivery delay (0-43200 seconds)
+- `--message-retention-period-secs` - How long to retain messages
+  - Free tier: 60-86400 seconds (1 min - 24 hours)
+  - Paid tier: 60-1209600 seconds (1 min - 14 days)
+
+**Examples:**
+
+```bash
+# Create a basic queue
+wrangler queues create my-queue
+
+# Create with delivery delay (5 minutes)
+wrangler queues create delayed-queue --delivery-delay-secs 300
+
+# Create with retention period (7 days)
+wrangler queues create long-retention-queue --message-retention-period-secs 604800
+```
+
+**Configuration:**
+
+After creation, add to your wrangler.json:
+
+```json wrangler.json
+{
+  "queues": {
+    "producers": [
+      {
+        "queue": "my-queue",
+        "binding": "MY_QUEUE"
+      }
+    ]
+  }
+}
+```
+
+### List Queues
+
+View all queues in your account:
+
+```bash
+wrangler queues list [--page <number>]
+```
+
+**Options:**
+- `--page` - Page number for pagination
+
+**Example Output:**
+```
+id                                   name           created_on                   modified_on                  producers  consumers
+aaaa-bbbb-cccc-dddd-eeee            my-queue       2024-01-15T10:30:00.000Z    2024-01-15T10:30:00.000Z    2          1
+ffff-gggg-hhhh-iiii-jjjj            task-queue     2024-02-01T14:20:00.000Z    2024-02-01T14:20:00.000Z    1          2
+```
+
+### Get Queue Info
+
+Retrieve detailed information about a queue:
+
+```bash
+wrangler queues info <queue>
+```
+
+**Shows:**
+- Queue ID and name
+- Creation and modification dates
+- Producer and consumer counts
+- Settings (delivery delay, retention period)
+
+**Example:**
+
+```bash
+wrangler queues info my-queue
+```
+
+### Update Queue Settings
+
+Modify queue configuration:
+
+```bash
+wrangler queues update <queue> [--delivery-delay-secs <seconds>] [--message-retention-period-secs <seconds>]
+```
+
+**Example:**
+
+```bash
+# Update delivery delay
+wrangler queues update my-queue --delivery-delay-secs 600
+
+# Update retention period
+wrangler queues update my-queue --message-retention-period-secs 259200
+```
+
+### Delete a Queue
+
+Delete a queue and all its messages:
+
+```bash
+wrangler queues delete <queue>
+```
+
+<Warning>
+Deleting a queue removes all messages and cannot be undone.
+</Warning>
+
+## Queue Operations
+
+<Tabs>
+  <Tab title="Pause/Resume">
+    ### Pause Queue
+
+    Pause message delivery to consumers:
+
+    ```bash
+    wrangler queues pause <queue>
+    ```
+
+    Messages continue to be accepted but won't be delivered to consumers.
+
+    ### Resume Queue
+
+    Resume message delivery:
+
+    ```bash
+    wrangler queues resume <queue>
+    ```
+
+    **Use Cases:**
+    - Temporarily stop processing during maintenance
+    - Control traffic during high-load periods
+    - Debug consumer issues without losing messages
+  </Tab>
+
+  <Tab title="Purge">
+    ### Purge Queue
+
+    Delete all messages from a queue:
+
+    ```bash
+    wrangler queues purge <queue>
+    ```
+
+    **Options:**
+    - Permanently deletes all messages
+    - Queue remains active
+    - Cannot be undone
+
+    <Warning>
+    This permanently deletes all messages in the queue. Use with caution.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Consumer Management
+
+### Add Consumer
+
+Attach a Worker as a consumer:
+
+```bash
+wrangler queues consumer add <queue> <script> [options]
+```
+
+**Options:**
+- `<queue>` - Queue name
+- `<script>` - Consumer Worker name
+- `--batch-size <n>` - Messages per batch (default: 10, max: 100)
+- `--max-retries <n>` - Maximum retry attempts (default: 3)
+- `--max-wait-time-ms <ms>` - Max wait for batch (default: 5000)
+- `--max-concurrency <n>` - Concurrent consumer invocations
+- `--visibility-timeout-ms <ms>` - Message visibility timeout (default: 30000)
+- `--retry-delay <seconds>` - Delay before retry (default: 60)
+- `--dead-letter-queue <queue>` - Queue for failed messages
+- `--env <environment>` - Worker environment
+
+**Examples:**
+
+```bash
+# Basic consumer
+wrangler queues consumer add my-queue my-worker
+
+# Consumer with custom settings
+wrangler queues consumer add my-queue my-worker \
+  --batch-size 50 \
+  --max-retries 5 \
+  --max-wait-time-ms 3000
+
+# Consumer with dead letter queue
+wrangler queues consumer add my-queue my-worker \
+  --dead-letter-queue failed-messages
+
+# Consumer with specific environment
+wrangler queues consumer add my-queue my-worker --env production
+```
+
+**Configuration:**
+
+```json wrangler.json
+{
+  "queues": {
+    "consumers": [
+      {
+        "queue": "my-queue",
+        "max_batch_size": 50,
+        "max_retries": 5,
+        "max_wait_time_ms": 3000,
+        "dead_letter_queue": "failed-messages"
+      }
+    ]
+  }
+}
+```
+
+### Update Consumer
+
+Modify consumer settings:
+
+```bash
+wrangler queues consumer update <queue> <script> [options]
+```
+
+Accepts same options as `consumer add`.
+
+### Remove Consumer
+
+Detach a consumer from a queue:
+
+```bash
+wrangler queues consumer remove <queue> <script> [--env <environment>]
+```
+
+### List Consumers
+
+View all consumers for a queue:
+
+```bash
+wrangler queues consumer list <queue>
+```
+
+## HTTP Pull Consumer
+
+Create a pull-based consumer for external systems:
+
+### Add HTTP Pull Consumer
+
+```bash
+wrangler queues consumer http add <queue> [options]
+```
+
+**Options:**
+- `--batch-size <n>` - Messages per pull
+- `--visibility-timeout-ms <ms>` - Message visibility timeout
+
+### Remove HTTP Pull Consumer
+
+```bash
+wrangler queues consumer http remove <queue>
+```
+
+## Event Subscriptions
+
+Subscribe to R2 bucket events:
+
+### Create Subscription
+
+```bash
+wrangler queues subscription create <queue> --bucket <bucket> --events <events>
+```
+
+**Events:**
+- `object-create` - Object uploaded
+- `object-delete` - Object deleted
+
+**Example:**
+
+```bash
+wrangler queues subscription create image-processing \
+  --bucket uploads \
+  --events object-create
+```
+
+### List Subscriptions
+
+```bash
+wrangler queues subscription list <queue>
+```
+
+### Update Subscription
+
+```bash
+wrangler queues subscription update <queue> <subscription-id> [options]
+```
+
+### Delete Subscription
+
+```bash
+wrangler queues subscription delete <queue> <subscription-id>
+```
+
+## Producer Worker
+
+Send messages to a queue from a Worker:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    // Send a single message
+    await env.MY_QUEUE.send({
+      userId: 123,
+      action: 'process-image',
+      url: 'https://example.com/image.jpg'
+    });
+
+    // Send multiple messages
+    await env.MY_QUEUE.sendBatch([
+      { type: 'email', to: 'user1@example.com' },
+      { type: 'email', to: 'user2@example.com' },
+      { type: 'email', to: 'user3@example.com' }
+    ]);
+
+    // Send with options
+    await env.MY_QUEUE.send(
+      { task: 'cleanup' },
+      { contentType: 'json', delaySeconds: 300 }
+    );
+
+    return new Response('Messages sent');
+  }
+};
+```
+
+## Consumer Worker
+
+Process messages from a queue:
+
+```typescript
+export default {
+  async queue(batch, env) {
+    // Process each message
+    for (const message of batch.messages) {
+      const { userId, action, url } = message.body;
+
+      try {
+        // Process the message
+        if (action === 'process-image') {
+          await processImage(url, env);
+        }
+
+        // Acknowledge successful processing
+        message.ack();
+      } catch (error) {
+        // Retry the message
+        message.retry();
+      }
+    }
+  }
+};
+
+// Or batch processing
+export default {
+  async queue(batch, env) {
+    // Process all messages together
+    const tasks = batch.messages.map(msg => 
+      processTask(msg.body, env)
+    );
+
+    const results = await Promise.allSettled(tasks);
+
+    // Handle results
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        batch.messages[index].ack();
+      } else {
+        batch.messages[index].retry();
+      }
+    });
+  }
+};
+```
+
+## Message API
+
+**Message Properties:**
+- `id` - Unique message ID
+- `timestamp` - When message was sent
+- `body` - Message content (any JSON-serializable data)
+- `attempts` - Number of delivery attempts
+
+**Message Methods:**
+- `ack()` - Mark as successfully processed
+- `retry()` - Retry delivery (up to max_retries)
+- `retryAll()` - Retry entire batch
+- `ackAll()` - Acknowledge entire batch
+
+**Batch Properties:**
+- `messages` - Array of messages
+- `queue` - Queue name
+- `retryAll()` - Retry all messages
+- `ackAll()` - Acknowledge all messages
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Message Design" icon="envelope">
+    - Keep messages small and focused
+    - Use JSON for structured data
+    - Include metadata for debugging (timestamp, version)
+    - Design for idempotency
+  </Card>
+
+  <Card title="Consumer Configuration" icon="settings">
+    - Set appropriate batch sizes (10-100)
+    - Configure retries based on use case
+    - Use dead letter queues for failed messages
+    - Set visibility timeout > processing time
+  </Card>
+
+  <Card title="Error Handling" icon="shield">
+    - Implement proper error handling in consumers
+    - Use try-catch around message processing
+    - Log errors with message IDs
+    - Monitor dead letter queues
+  </Card>
+
+  <Card title="Performance" icon="rocket">
+    - Batch messages when sending
+    - Process messages concurrently when safe
+    - Use max_concurrency to control load
+    - Monitor queue depth and processing lag
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Background Processing">
+    Offload time-consuming tasks from request handlers:
+    - Image/video processing
+    - Report generation
+    - Data aggregation
+    - Email sending
+  </Accordion>
+
+  <Accordion title="Event-Driven Architecture">
+    React to events asynchronously:
+    - R2 object uploads (event subscriptions)
+    - User actions requiring follow-up
+    - System state changes
+    - Scheduled tasks
+  </Accordion>
+
+  <Accordion title="Load Leveling">
+    Smooth out traffic spikes:
+    - Queue requests during high load
+    - Process at controlled rate
+    - Prevent downstream overload
+    - Handle bursts gracefully
+  </Accordion>
+
+  <Accordion title="Fan-Out Processing">
+    Distribute work across multiple consumers:
+    - Parallel data processing
+    - Multi-step workflows
+    - Microservice coordination
+    - Batch operations
+  </Accordion>
+</AccordionGroup>
+
+## Limits
+
+- **Message size**: 128 KB
+- **Batch size**: 100 messages
+- **Max retries**: Configurable (default: 3)
+- **Retention**: 1 minute - 14 days (depending on plan)
+- **Delivery delay**: 0 - 12 hours
+
+## Related Commands
+
+- [Durable Objects](/platform/durable-objects) - Stateful coordination
+- [R2 Storage](/platform/r2-storage) - Event subscriptions
+- [D1 Database](/platform/d1-database) - Persistent storage

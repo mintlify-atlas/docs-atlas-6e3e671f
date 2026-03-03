@@ -1,0 +1,609 @@
+---
+title: 'Cloudflare Pages'
+description: 'Deploy static sites and full-stack applications with Cloudflare Pages'
+---
+
+## Overview
+
+Cloudflare Pages is a platform for deploying static sites and full-stack applications. It provides automatic deployments from Git, preview environments, and edge computing with Pages Functions.
+
+## Quick Start
+
+### Deploy a Site
+
+Deploy a directory of static assets:
+
+```bash
+wrangler pages deploy <directory> [--project-name <name>]
+```
+
+**Options:**
+- `<directory>` - Directory containing static files
+- `--project-name` - Name of the project (required for first deployment)
+- `--branch` - Git branch name (defaults to current branch)
+- `--commit-hash` - Git commit SHA
+- `--commit-message` - Commit message to attach
+- `--commit-dirty` - Mark workspace as dirty
+- `--skip-caching` - Disable asset caching
+- `--no-bundle` - Skip bundling `_worker.js`
+- `--upload-source-maps` - Upload server-side source maps
+
+**Examples:**
+
+```bash
+# First deployment
+wrangler pages deploy ./dist --project-name my-site
+
+# Subsequent deployments
+wrangler pages deploy ./dist
+
+# Deploy to specific branch
+wrangler pages deploy ./dist --branch production
+
+# Deploy with Git metadata
+wrangler pages deploy ./dist \
+  --commit-hash $(git rev-parse HEAD) \
+  --commit-message "$(git log -1 --pretty=%B)"
+```
+
+### Configuration
+
+Configure Pages in your wrangler.json:
+
+```json wrangler.json
+{
+  "name": "my-site",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2024-01-01",
+  "compatibility_flags": ["nodejs_compat"]
+}
+```
+
+## Project Management
+
+### Create a Project
+
+Create a new Pages project:
+
+```bash
+wrangler pages project create <project-name> [options]
+```
+
+**Options:**
+- `<project-name>` - Project name (required)
+- `--production-branch` - Name of production branch
+- `--compatibility-flags` - Compatibility flags
+- `--compatibility-date` - Compatibility date (YYYY-MM-DD)
+
+**Example:**
+
+```bash
+wrangler pages project create my-site \
+  --production-branch main \
+  --compatibility-date 2024-01-01
+```
+
+### List Projects
+
+View all Pages projects:
+
+```bash
+wrangler pages project list [--json]
+```
+
+**Options:**
+- `--json` - Output as JSON
+
+**Example Output:**
+```
+Project Name          Project Domains                      Git Provider  Last Modified
+my-site              my-site.pages.dev                    Yes           2 hours ago
+portfolio            portfolio.pages.dev, example.com     Yes           1 day ago
+```
+
+### Delete a Project
+
+Delete a Pages project:
+
+```bash
+wrangler pages project delete <project-name>
+```
+
+<Warning>
+This permanently deletes the project and all its deployments.
+</Warning>
+
+## Deployment Management
+
+### List Deployments
+
+View deployments for a project:
+
+```bash
+wrangler pages deployment list [--project-name <name>]
+```
+
+**Shows:**
+- Deployment ID
+- Environment (production/preview)
+- Created timestamp
+- Deployment URL
+- Git commit info
+
+### Get Deployment Info
+
+View details of a specific deployment:
+
+```bash
+wrangler pages deployment info <deployment-id> [--project-name <name>]
+```
+
+### Tail Deployment Logs
+
+Stream real-time logs from a deployment:
+
+```bash
+wrangler pages deployment tail [--project-name <name>] [--environment <env>]
+```
+
+**Options:**
+- `--project-name` - Project name
+- `--environment` - Environment (production/preview)
+- `--format` - Output format (json/pretty)
+
+**Example:**
+
+```bash
+wrangler pages deployment tail --project-name my-site --environment production
+```
+
+## Pages Functions
+
+Pages Functions enable server-side logic at the edge.
+
+### Directory Structure
+
+```
+.
+├── functions/
+│   ├── api/
+│   │   ├── users.ts          # /api/users
+│   │   └── posts/
+│   │       └── [id].ts       # /api/posts/:id
+│   ├── _middleware.ts        # Global middleware
+│   └── index.ts              # Root handler
+└── public/
+    └── index.html
+```
+
+### Function Examples
+
+<Tabs>
+  <Tab title="Basic Function">
+    **functions/api/hello.ts:**
+
+    ```typescript
+    export async function onRequest(context) {
+      return new Response('Hello from Pages Functions!');
+    }
+    ```
+
+    Access at: `https://your-site.pages.dev/api/hello`
+  </Tab>
+
+  <Tab title="HTTP Methods">
+    **functions/api/users.ts:**
+
+    ```typescript
+    export async function onRequestGet(context) {
+      // Handle GET /api/users
+      const users = await context.env.DB.prepare(
+        'SELECT * FROM users'
+      ).all();
+
+      return Response.json(users.results);
+    }
+
+    export async function onRequestPost(context) {
+      // Handle POST /api/users
+      const data = await context.request.json();
+
+      await context.env.DB.prepare(
+        'INSERT INTO users (name, email) VALUES (?, ?)'
+      ).bind(data.name, data.email).run();
+
+      return Response.json({ success: true }, { status: 201 });
+    }
+
+    export async function onRequestDelete(context) {
+      // Handle DELETE /api/users
+      const { searchParams } = new URL(context.request.url);
+      const id = searchParams.get('id');
+
+      await context.env.DB.prepare(
+        'DELETE FROM users WHERE id = ?'
+      ).bind(id).run();
+
+      return Response.json({ success: true });
+    }
+    ```
+  </Tab>
+
+  <Tab title="Dynamic Routes">
+    **functions/api/posts/[id].ts:**
+
+    ```typescript
+    export async function onRequestGet(context) {
+      const { id } = context.params;
+
+      const post = await context.env.DB.prepare(
+        'SELECT * FROM posts WHERE id = ?'
+      ).bind(id).first();
+
+      if (!post) {
+        return new Response('Not found', { status: 404 });
+      }
+
+      return Response.json(post);
+    }
+    ```
+
+    Access at: `https://your-site.pages.dev/api/posts/123`
+  </Tab>
+
+  <Tab title="Middleware">
+    **functions/_middleware.ts:**
+
+    ```typescript
+    export async function onRequest(context) {
+      // Check authentication
+      const token = context.request.headers.get('Authorization');
+
+      if (!token) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      // Verify token and add user to context
+      const user = await verifyToken(token, context.env);
+      context.data.user = user;
+
+      // Continue to next handler
+      return context.next();
+    }
+
+    async function verifyToken(token: string, env: Env) {
+      // Token verification logic
+      return { id: 1, name: 'User' };
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Context Object
+
+```typescript
+interface EventContext {
+  request: Request;           // Incoming request
+  env: Env;                   // Environment bindings
+  params: Record<string, string>; // Dynamic route params
+  data: Record<string, any>;  // Shared data between middleware
+  next: () => Promise<Response>; // Call next handler
+  waitUntil: (promise: Promise<any>) => void; // Background tasks
+  passThroughOnException: () => void; // Fallback behavior
+}
+```
+
+## Advanced Features
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="key">
+    Set environment variables and secrets:
+
+    ```bash
+    # Add encrypted secret
+    wrangler pages secret put <key> [--project-name <name>]
+
+    # List secrets
+    wrangler pages secret list [--project-name <name>]
+
+    # Delete secret
+    wrangler pages secret delete <key> [--project-name <name>]
+    ```
+
+    Access in functions:
+    ```typescript
+    export async function onRequest(context) {
+      const apiKey = context.env.API_KEY;
+      return Response.json({ key: apiKey });
+    }
+    ```
+  </Card>
+
+  <Card title="Custom Domains" icon="globe">
+    Add custom domains to your project:
+
+    ```bash
+    wrangler pages domain add <domain> [--project-name <name>]
+
+    wrangler pages domain list [--project-name <name>]
+
+    wrangler pages domain delete <domain> [--project-name <name>]
+    ```
+
+    Example:
+    ```bash
+    wrangler pages domain add example.com --project-name my-site
+    ```
+  </Card>
+
+  <Card title="Download Config" icon="download">
+    Download project configuration:
+
+    ```bash
+    wrangler pages download config <project-name> [--output <file>]
+    ```
+
+    Downloads wrangler.json with bindings and settings.
+  </Card>
+
+  <Card title="Build Integration" icon="hammer">
+    Configure build settings:
+
+    ```json wrangler.json
+    {
+      "pages_build_output_dir": "./dist",
+      "build": {
+        "command": "npm run build",
+        "cwd": ".",
+        "watch_dirs": ["src"]
+      }
+    }
+    ```
+  </Card>
+</CardGroup>
+
+## Development Workflow
+
+### Local Development
+
+Run Pages locally with `wrangler dev`:
+
+```bash
+wrangler pages dev <directory> [options]
+```
+
+**Options:**
+- `<directory>` - Static files directory
+- `--port` - Port to listen on (default: 8788)
+- `--local` - Use local bindings
+- `--persist-to` - Local persistence directory
+- `--live-reload` - Enable auto-reload
+
+**Example:**
+
+```bash
+# Serve static files
+wrangler pages dev ./dist
+
+# With Functions
+wrangler pages dev ./public --live-reload
+
+# Custom port
+wrangler pages dev ./dist --port 3000
+```
+
+### Preview Deployments
+
+Every non-production branch gets a preview deployment:
+
+```bash
+# Deploy preview
+wrangler pages deploy ./dist --branch feature-x
+```
+
+Previews are available at:
+- `https://<branch>.<project>.pages.dev`
+
+### Production Deployments
+
+Deploy to production branch:
+
+```bash
+wrangler pages deploy ./dist --branch main
+```
+
+Production is available at:
+- `https://<project>.pages.dev`
+- Custom domains (if configured)
+
+## Bindings and Resources
+
+Pages Functions can access Workers bindings:
+
+```json wrangler.json
+{
+  "name": "my-site",
+  "pages_build_output_dir": "./dist",
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-database",
+      "database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "uploads"
+    }
+  ]
+}
+```
+
+Access in functions:
+
+```typescript
+export async function onRequest(context) {
+  // KV
+  await context.env.CACHE.put('key', 'value');
+
+  // D1
+  const users = await context.env.DB.prepare(
+    'SELECT * FROM users'
+  ).all();
+
+  // R2
+  const file = await context.env.STORAGE.get('file.txt');
+
+  return Response.json({ users: users.results });
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Project Structure" icon="folder">
+    - Keep functions in `/functions` directory
+    - Use `_middleware.ts` for shared logic
+    - Organize by routes: `/api/users.ts`
+    - Static files in `/public` or build output
+  </Card>
+
+  <Card title="Performance" icon="rocket">
+    - Minimize function bundle size
+    - Use `--skip-caching` only when needed
+    - Enable source maps for debugging
+    - Cache static assets with headers
+  </Card>
+
+  <Card title="Development" icon="code">
+    - Test locally with `wrangler pages dev`
+    - Use preview deployments for testing
+    - Configure compatibility date/flags
+    - Version control wrangler.json
+  </Card>
+
+  <Card title="Security" icon="shield">
+    - Use secrets for sensitive data
+    - Implement authentication middleware
+    - Validate input in functions
+    - Set appropriate CORS headers
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+<AccordionGroup>
+  <Accordion title="API Routes">
+    ```typescript
+    // functions/api/todos.ts
+    export async function onRequestGet(context) {
+      const todos = await context.env.DB.prepare(
+        'SELECT * FROM todos'
+      ).all();
+      return Response.json(todos.results);
+    }
+
+    export async function onRequestPost(context) {
+      const { title } = await context.request.json();
+      await context.env.DB.prepare(
+        'INSERT INTO todos (title) VALUES (?)'
+      ).bind(title).run();
+      return Response.json({ success: true }, { status: 201 });
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Authentication">
+    ```typescript
+    // functions/_middleware.ts
+    export async function onRequest(context) {
+      const url = new URL(context.request.url);
+
+      // Skip auth for public routes
+      if (url.pathname.startsWith('/public')) {
+        return context.next();
+      }
+
+      // Check session cookie
+      const cookie = context.request.headers.get('Cookie');
+      const session = parseSession(cookie);
+
+      if (!session) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      context.data.session = session;
+      return context.next();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="File Uploads">
+    ```typescript
+    // functions/api/upload.ts
+    export async function onRequestPost(context) {
+      const formData = await context.request.formData();
+      const file = formData.get('file') as File;
+
+      if (!file) {
+        return new Response('No file', { status: 400 });
+      }
+
+      // Upload to R2
+      await context.env.STORAGE.put(file.name, file.stream());
+
+      return Response.json({ 
+        success: true, 
+        filename: file.name 
+      });
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="SSR with Framework">
+    ```typescript
+    // functions/[[path]].ts
+    import { renderToString } from 'react-dom/server';
+    import App from '../src/App';
+
+    export async function onRequest(context) {
+      const html = renderToString(<App />);
+
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+          <body>
+            <div id="root">${html}</div>
+            <script src="/bundle.js"></script>
+          </body>
+        </html>`,
+        {
+          headers: { 'Content-Type': 'text/html' }
+        }
+      );
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Limits
+
+- **Function size**: 10 MB (compressed)
+- **Request body**: 100 MB
+- **Execution time**: 30 seconds (can be extended)
+- **Deployments**: 500 per day
+- **Bandwidth**: Unlimited
+
+## Related Commands
+
+- [KV Storage](/platform/kv-storage) - Edge key-value storage
+- [D1 Database](/platform/d1-database) - SQL database
+- [R2 Storage](/platform/r2-storage) - Object storage
+- [Durable Objects](/platform/durable-objects) - Stateful coordination

@@ -1,0 +1,241 @@
+---
+title: wrangler tail
+description: Start a log tailing session for a Worker
+---
+
+Stream real-time logs from a deployed Worker.
+
+```bash
+wrangler tail [worker] [options]
+```
+
+## Arguments
+
+<ParamField path="worker" type="string">
+  Name or route of the worker to tail
+</ParamField>
+
+## Options
+
+### Display Options
+
+<ParamField path="--format" type="string">
+  The format of log entries
+  
+  **Choices:** `json`, `pretty`
+  
+  **Default:** `pretty` (if terminal supports TTY), `json` otherwise
+</ParamField>
+
+### Filter Options
+
+<ParamField path="--status" type="string[]">
+  Filter by invocation status
+  
+  **Choices:** `ok`, `error`, `canceled`
+</ParamField>
+
+<ParamField path="--header" type="string">
+  Filter by HTTP header
+</ParamField>
+
+<ParamField path="--method" type="string[]">
+  Filter by HTTP method
+</ParamField>
+
+<ParamField path="--sampling-rate" type="number">
+  Adds a percentage of requests to log sampling rate
+</ParamField>
+
+<ParamField path="--search" type="string">
+  Filter by a text match in console.log messages
+</ParamField>
+
+<ParamField path="--ip" type="string[]">
+  Filter by the IP address the request originates from. Use "self" to filter for your own IP
+</ParamField>
+
+<ParamField path="--version-id" type="string">
+  Filter by Worker version
+</ParamField>
+
+<ParamField path="--debug" type="boolean">
+  If a log would have been filtered out, send it through anyway alongside the filter which would have blocked it
+  
+  **Default:** `false`
+</ParamField>
+
+## Examples
+
+### Tail a Worker by name
+
+```bash
+wrangler tail my-worker
+```
+
+### Tail a Worker by route
+
+```bash
+wrangler tail example.com/api/*
+```
+
+### Filter by status
+
+```bash
+wrangler tail my-worker --status error
+```
+
+### Filter by HTTP method
+
+```bash
+wrangler tail my-worker --method POST --method PUT
+```
+
+### Filter by search term
+
+```bash
+wrangler tail my-worker --search "authentication failed"
+```
+
+### Output as JSON
+
+```bash
+wrangler tail my-worker --format json
+```
+
+### Filter by your own IP
+
+```bash
+wrangler tail my-worker --ip self
+```
+
+### Sample 10% of requests
+
+```bash
+wrangler tail my-worker --sampling-rate 0.1
+```
+
+### Filter by specific header
+
+```bash
+wrangler tail my-worker --header "X-Custom-Header: value"
+```
+
+### Filter by Worker version
+
+```bash
+wrangler tail my-worker --version-id abc123
+```
+
+## Output Formats
+
+### Pretty Format (default for TTY)
+
+Human-readable output with colors and formatting:
+
+```
+[2026-03-03 10:30:45] GET https://example.com/api/users
+  Status: 200 OK
+  Duration: 42ms
+  [log] Fetching users from database
+  [log] Returned 150 users
+```
+
+### JSON Format
+
+Machine-readable JSON output, one event per line:
+
+```json
+{"event":{"request":{"url":"https://example.com/api/users","method":"GET"},"response":{"status":200},"logs":[{"message":["Fetching users from database"],"level":"log","timestamp":1709463045000}]}}
+```
+
+## Filtering
+
+### Status Filtering
+
+Filter by request outcome:
+
+```bash
+# Show only errors
+wrangler tail my-worker --status error
+
+# Show successful and canceled requests
+wrangler tail my-worker --status ok --status canceled
+```
+
+### Method Filtering
+
+Filter by HTTP method:
+
+```bash
+# Show only POST requests
+wrangler tail my-worker --method POST
+
+# Show POST and DELETE requests
+wrangler tail my-worker --method POST --method DELETE
+```
+
+### Search Filtering
+
+Filter by text in console.log messages:
+
+```bash
+wrangler tail my-worker --search "database error"
+```
+
+### IP Filtering
+
+Filter by client IP address:
+
+```bash
+# Filter by specific IP
+wrangler tail my-worker --ip 203.0.113.42
+
+# Filter by your own IP
+wrangler tail my-worker --ip self
+
+# Filter by multiple IPs
+wrangler tail my-worker --ip 203.0.113.42 --ip 198.51.100.1
+```
+
+### Sampling
+
+Reduce log volume by sampling:
+
+```bash
+# Log 10% of requests
+wrangler tail my-worker --sampling-rate 0.1
+
+# Log 50% of requests
+wrangler tail my-worker --sampling-rate 0.5
+```
+
+## Worker Identification
+
+### By Name
+
+Tail a Worker by its name:
+
+```bash
+wrangler tail my-worker
+```
+
+### By Route
+
+Tail a Worker by its route (must contain a dot):
+
+```bash
+wrangler tail api.example.com/*
+```
+
+Wrangler automatically determines if the argument is a route (contains `.`) or a worker name.
+
+## Connection Management
+
+The tail session maintains a WebSocket connection to Cloudflare's logging service. Wrangler automatically:
+
+- Pings the connection every 10 seconds to detect disconnections
+- Exits gracefully when the connection is lost
+- Cleans up the tail on exit
+
+Press `Ctrl+C` to stop tailing and close the connection.

@@ -1,0 +1,581 @@
+---
+title: wrangler queues
+description: Manage Workers Queues
+---
+
+Workers Queues allow you to send and receive messages with guaranteed delivery. Use these commands to manage your queues, consumers, and event subscriptions.
+
+## create
+
+Create a new queue.
+
+```bash
+wrangler queues create <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the queue to create
+</ParamField>
+
+### Options
+
+<ParamField path="--delivery-delay-secs" type="number">
+  How long a published message should be delayed for, in seconds. Must be between 0 and 43200 (12 hours)
+</ParamField>
+
+<ParamField path="--message-retention-period-secs" type="number">
+  How long to retain a message in the queue, in seconds. Must be between 60 and 86400 if on free tier, otherwise must be between 60 and 1209600 (14 days)
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues create my-queue
+```
+
+After creation, configure your Worker to use the queue:
+
+```json wrangler.json
+{
+  "queues": {
+    "producers": [
+      {
+        "queue": "my-queue",
+        "binding": "MY_QUEUE"
+      }
+    ]
+  }
+}
+```
+
+## delete
+
+Delete a queue.
+
+```bash
+wrangler queues delete <name>
+```
+
+<ParamField path="name" type="string" required>
+  The name of the queue to delete
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues delete my-queue
+```
+
+## list
+
+List all queues in your account.
+
+```bash
+wrangler queues list [options]
+```
+
+### Options
+
+<ParamField path="--page" type="number">
+  Page number for pagination
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues list
+```
+
+## info
+
+Get detailed information about a queue.
+
+```bash
+wrangler queues info <name>
+```
+
+<ParamField path="name" type="string" required>
+  The name of the queue
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues info my-queue
+```
+
+Displays queue information including:
+- Queue ID and name
+- Creation and modification timestamps
+- Number of producers and consumers
+- Consumer details (Worker consumers or HTTP Pull consumers)
+
+## update
+
+Update queue settings.
+
+```bash
+wrangler queues update <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the queue to update
+</ParamField>
+
+### Options
+
+<ParamField path="--delivery-delay-secs" type="number">
+  How long a published message should be delayed for, in seconds. Must be between 0 and 43200
+</ParamField>
+
+<ParamField path="--message-retention-period-secs" type="number">
+  How long to retain a message in the queue, in seconds. Must be between 60 and 86400 if on free tier, otherwise must be between 60 and 1209600
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues update my-queue --delivery-delay-secs 10
+```
+
+## pause
+
+Pause message delivery for a queue.
+
+```bash
+wrangler queues pause <name>
+```
+
+<ParamField path="name" type="string" required>
+  The name of the queue to pause
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues pause my-queue
+```
+
+## resume
+
+Resume message delivery for a paused queue.
+
+```bash
+wrangler queues resume <name>
+```
+
+<ParamField path="name" type="string" required>
+  The name of the queue to resume
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues resume my-queue
+```
+
+## purge
+
+Purge all messages from a queue.
+
+```bash
+wrangler queues purge <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the queue to purge
+</ParamField>
+
+### Options
+
+<ParamField path="--force" type="boolean">
+  Skip the confirmation dialog and forcefully purge the queue
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues purge my-queue
+```
+
+<Warning>
+  This operation permanently deletes all messages in the queue and cannot be undone.
+</Warning>
+
+## consumer worker
+
+Manage Worker consumers for a queue.
+
+<Accordion title="consumer worker add">
+
+Add a Worker consumer to a queue.
+
+```bash
+wrangler queues consumer worker add <queue-name> <script-name> [options]
+```
+
+<ParamField path="queue-name" type="string" required>
+  Name of the queue to configure
+</ParamField>
+
+<ParamField path="script-name" type="string" required>
+  Name of the consumer Worker script
+</ParamField>
+
+### Options
+
+<ParamField path="--batch-size" type="number">
+  Maximum number of messages per batch
+</ParamField>
+
+<ParamField path="--batch-timeout" type="number">
+  Maximum number of seconds to wait to fill a batch with messages
+</ParamField>
+
+<ParamField path="--message-retries" type="number">
+  Maximum number of retries for each message
+</ParamField>
+
+<ParamField path="--dead-letter-queue" type="string">
+  Queue to send messages that failed to be consumed
+</ParamField>
+
+<ParamField path="--max-concurrency" type="number">
+  The maximum number of concurrent consumer Worker invocations. Must be a positive integer
+</ParamField>
+
+<ParamField path="--retry-delay-secs" type="number">
+  The number of seconds to wait before retrying a message
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues consumer worker add my-queue my-consumer --batch-size 10 --max-concurrency 5
+```
+
+</Accordion>
+
+<Accordion title="consumer worker remove">
+
+Remove a Worker consumer from a queue.
+
+```bash
+wrangler queues consumer worker remove <queue-name> <script-name>
+```
+
+<ParamField path="queue-name" type="string" required>
+  Name of the queue to configure
+</ParamField>
+
+<ParamField path="script-name" type="string" required>
+  Name of the consumer Worker script to remove
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues consumer worker remove my-queue my-consumer
+```
+
+</Accordion>
+
+## consumer http-pull
+
+Manage HTTP Pull consumers for a queue.
+
+<Accordion title="consumer http-pull add">
+
+Add an HTTP Pull consumer to a queue.
+
+```bash
+wrangler queues consumer http-pull add <queue-name> [options]
+```
+
+<ParamField path="queue-name" type="string" required>
+  Name of the queue for the consumer
+</ParamField>
+
+### Options
+
+<ParamField path="--batch-size" type="number">
+  Maximum number of messages per batch
+</ParamField>
+
+<ParamField path="--message-retries" type="number">
+  Maximum number of retries for each message
+</ParamField>
+
+<ParamField path="--dead-letter-queue" type="string">
+  Queue to send messages that failed to be consumed
+</ParamField>
+
+<ParamField path="--visibility-timeout-secs" type="number">
+  The number of seconds a message will wait for an acknowledgement before being returned to the queue
+</ParamField>
+
+<ParamField path="--retry-delay-secs" type="number">
+  The number of seconds to wait before retrying a message
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues consumer http-pull add my-queue --batch-size 10
+```
+
+</Accordion>
+
+<Accordion title="consumer http-pull remove">
+
+Remove an HTTP Pull consumer from a queue.
+
+```bash
+wrangler queues consumer http-pull remove <queue-name>
+```
+
+<ParamField path="queue-name" type="string" required>
+  Name of the queue for the consumer
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues consumer http-pull remove my-queue
+```
+
+</Accordion>
+
+## subscription
+
+Manage event subscriptions for a queue.
+
+<Accordion title="subscription create">
+
+Create a new event subscription for a queue.
+
+```bash
+wrangler queues subscription create <queue> [options]
+```
+
+<ParamField path="queue" type="string" required>
+  The name of the queue to create the subscription for
+</ParamField>
+
+### Options
+
+<ParamField path="--source" type="string" required>
+  The event source type. Valid values:
+  - `kv.namespace`
+  - `r2.bucket`
+  - `superSlurper.job`
+  - `vectorize.index`
+  - `workersAi.model`
+  - `workersBuilds.worker`
+  - `workflows.workflow`
+</ParamField>
+
+<ParamField path="--events" type="string" required>
+  Comma-separated list of event types to subscribe to
+</ParamField>
+
+<ParamField path="--name" type="string">
+  Name for the subscription (auto-generated if not provided)
+</ParamField>
+
+<ParamField path="--enabled" type="boolean" default="true">
+  Whether the subscription should be active
+</ParamField>
+
+<ParamField path="--model-name" type="string">
+  Workers AI model name (required for `workersAi.model` source)
+</ParamField>
+
+<ParamField path="--worker-name" type="string">
+  Worker name (required for `workersBuilds.worker` source)
+</ParamField>
+
+<ParamField path="--workflow-name" type="string">
+  Workflow name (required for `workflows.workflow` source)
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues subscription create my-queue --source r2.bucket --events object.create,object.delete
+```
+
+</Accordion>
+
+<Accordion title="subscription delete">
+
+Delete an event subscription from a queue.
+
+```bash
+wrangler queues subscription delete <queue> [options]
+```
+
+<ParamField path="queue" type="string" required>
+  The name of the queue
+</ParamField>
+
+### Options
+
+<ParamField path="--id" type="string" required>
+  The ID of the subscription to delete
+</ParamField>
+
+<ParamField path="--force" type="boolean" default="false">
+  Skip confirmation
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues subscription delete my-queue --id abc123
+```
+
+</Accordion>
+
+<Accordion title="subscription list">
+
+List event subscriptions for a queue.
+
+```bash
+wrangler queues subscription list <queue> [options]
+```
+
+<ParamField path="queue" type="string" required>
+  The name of the queue to list subscriptions for
+</ParamField>
+
+### Options
+
+<ParamField path="--page" type="number" default="1">
+  Page number for pagination
+</ParamField>
+
+<ParamField path="--per-page" type="number" default="20">
+  Number of subscriptions per page
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Output in JSON format
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues subscription list my-queue
+```
+
+</Accordion>
+
+<Accordion title="subscription get">
+
+Get details about a specific event subscription.
+
+```bash
+wrangler queues subscription get <queue> [options]
+```
+
+<ParamField path="queue" type="string" required>
+  The name of the queue
+</ParamField>
+
+### Options
+
+<ParamField path="--id" type="string" required>
+  The ID of the subscription to retrieve
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Output in JSON format
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues subscription get my-queue --id abc123
+```
+
+</Accordion>
+
+<Accordion title="subscription update">
+
+Update an existing event subscription.
+
+```bash
+wrangler queues subscription update <queue> [options]
+```
+
+<ParamField path="queue" type="string" required>
+  The name of the queue
+</ParamField>
+
+### Options
+
+<ParamField path="--id" type="string" required>
+  The ID of the subscription to update
+</ParamField>
+
+<ParamField path="--name" type="string">
+  New name for the subscription
+</ParamField>
+
+<ParamField path="--events" type="string">
+  Comma-separated list of event types to subscribe to
+</ParamField>
+
+<ParamField path="--enabled" type="boolean">
+  Whether the subscription should be active
+</ParamField>
+
+<ParamField path="--json" type="boolean" default="false">
+  Output in JSON format
+</ParamField>
+
+### Example
+
+```bash
+wrangler queues subscription update my-queue --id abc123 --enabled false
+```
+
+</Accordion>
+
+## Configuration
+
+Configure queues in your Worker configuration file:
+
+### Producer Configuration
+
+```json wrangler.json
+{
+  "queues": {
+    "producers": [
+      {
+        "queue": "my-queue",
+        "binding": "MY_QUEUE"
+      }
+    ]
+  }
+}
+```
+
+### Consumer Configuration
+
+```json wrangler.json
+{
+  "queues": {
+    "consumers": [
+      {
+        "queue": "my-queue",
+        "max_batch_size": 10,
+        "max_batch_timeout": 30,
+        "max_retries": 3,
+        "dead_letter_queue": "my-dlq"
+      }
+    ]
+  }
+}
+```

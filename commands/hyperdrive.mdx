@@ -1,0 +1,357 @@
+---
+title: wrangler hyperdrive
+description: Manage Hyperdrive database connections
+---
+
+Hyperdrive accelerates access to your existing databases from Cloudflare Workers, making even geographically distributed databases feel like they're right next to your application.
+
+## create
+
+Create a new Hyperdrive configuration.
+
+```bash
+wrangler hyperdrive create <name> [options]
+```
+
+<ParamField path="name" type="string" required>
+  The name of the Hyperdrive configuration
+</ParamField>
+
+### Connection String Options
+
+<ParamField path="--connection-string" type="string">
+  The connection string for the database you want Hyperdrive to connect to.
+  Format: `protocol://user:password@host:port/database`
+  
+  Supported protocols: `postgres`, `postgresql`, `mysql`
+</ParamField>
+
+### Individual Parameter Options
+
+Alternatively, configure the connection using individual parameters (conflicts with `--connection-string`):
+
+<ParamField path="--origin-host" type="string">
+  The host of the origin database (alias: `--host`)
+</ParamField>
+
+<ParamField path="--origin-port" type="number">
+  The port number of the origin database (alias: `--port`)
+</ParamField>
+
+<ParamField path="--origin-scheme" type="string" default="postgresql">
+  The scheme used to connect to the origin database (alias: `--scheme`)
+  
+  Valid values: `postgres`, `postgresql`, `mysql`
+</ParamField>
+
+<ParamField path="--database" type="string">
+  The name of the database within the origin database
+</ParamField>
+
+<ParamField path="--origin-user" type="string">
+  The username used to connect to the origin database (alias: `--user`)
+</ParamField>
+
+<ParamField path="--origin-password" type="string">
+  The password used to connect to the origin database (alias: `--password`)
+</ParamField>
+
+### Hyperdrive over Access Options
+
+<ParamField path="--access-client-id" type="string">
+  The Client ID of the Access token to use when connecting to the origin database.
+  
+  Requires `--access-client-secret`. Conflicts with `--origin-port`.
+</ParamField>
+
+<ParamField path="--access-client-secret" type="string">
+  The Client Secret of the Access token to use when connecting to the origin database
+</ParamField>
+
+### Caching Options
+
+<ParamField path="--caching-disabled" type="boolean">
+  Disables the caching of SQL responses
+</ParamField>
+
+<ParamField path="--max-age" type="number">
+  Specifies max duration for which items should persist in the cache. Cannot be set when caching is disabled
+</ParamField>
+
+<ParamField path="--swr" type="number">
+  Indicates the number of seconds cache may serve the response after it becomes stale. Cannot be set when caching is disabled
+</ParamField>
+
+### Security Options
+
+<ParamField path="--ca-certificate-id" type="string">
+  Sets custom CA certificate when connecting to origin database. Must be valid UUID of already uploaded CA certificate (alias: `--ca-certificate-uuid`)
+</ParamField>
+
+<ParamField path="--mtls-certificate-id" type="string">
+  Sets custom mTLS client certificates when connecting to origin database. Must be valid UUID of already uploaded public/private key certificates (alias: `--mtls-certificate-uuid`)
+</ParamField>
+
+<ParamField path="--sslmode" type="string">
+  Sets CA sslmode for connecting to database.
+  
+  Valid values: `require`, `verify-ca`, `verify-full`
+</ParamField>
+
+### Performance Options
+
+<ParamField path="--origin-connection-limit" type="number">
+  The (soft) maximum number of connections that Hyperdrive may establish to the origin database
+</ParamField>
+
+### Worker Binding Options
+
+<ParamField path="--binding" type="string">
+  The binding name of this resource in your Worker
+</ParamField>
+
+<ParamField path="--update-config" type="boolean">
+  Automatically update your config file with the newly added resource
+</ParamField>
+
+### Examples
+
+#### Using a connection string
+
+```bash
+wrangler hyperdrive create my-db --connection-string="postgresql://user:password@database.example.com:5432/mydb"
+```
+
+#### Using individual parameters
+
+```bash
+wrangler hyperdrive create my-db \
+  --origin-host="database.example.com" \
+  --origin-port=5432 \
+  --database="mydb" \
+  --origin-user="user" \
+  --origin-password="password"
+```
+
+#### With caching options
+
+```bash
+wrangler hyperdrive create my-db \
+  --connection-string="postgresql://user:password@database.example.com:5432/mydb" \
+  --max-age=60 \
+  --swr=15
+```
+
+#### With SSL/TLS options
+
+```bash
+wrangler hyperdrive create my-db \
+  --connection-string="postgresql://user:password@database.example.com:5432/mydb" \
+  --sslmode="verify-full" \
+  --ca-certificate-id="abc123-def456-789"
+```
+
+## delete
+
+Delete a Hyperdrive configuration.
+
+```bash
+wrangler hyperdrive delete <id>
+```
+
+<ParamField path="id" type="string" required>
+  The ID of the Hyperdrive configuration to delete
+</ParamField>
+
+### Example
+
+```bash
+wrangler hyperdrive delete 01234567-89ab-cdef-0123-456789abcdef
+```
+
+## list
+
+List all Hyperdrive configurations.
+
+```bash
+wrangler hyperdrive list
+```
+
+### Example
+
+```bash
+wrangler hyperdrive list
+```
+
+Displays a table with:
+- Configuration ID
+- Configuration name
+- Database user
+- Host
+- Port
+- Database scheme (PostgreSQL/MySQL)
+- Database name
+- Caching settings
+- mTLS configuration
+- Origin connection limit
+
+## get
+
+Get details about a specific Hyperdrive configuration.
+
+```bash
+wrangler hyperdrive get <id>
+```
+
+<ParamField path="id" type="string" required>
+  The ID of the Hyperdrive configuration
+</ParamField>
+
+### Example
+
+```bash
+wrangler hyperdrive get 01234567-89ab-cdef-0123-456789abcdef
+```
+
+Returns the full configuration as JSON, including origin details, caching settings, and security configuration.
+
+## update
+
+Update an existing Hyperdrive configuration.
+
+```bash
+wrangler hyperdrive update <id> [options]
+```
+
+<ParamField path="id" type="string" required>
+  The ID of the Hyperdrive configuration to update
+</ParamField>
+
+### Options
+
+All options from the `create` command are supported, plus:
+
+<ParamField path="--name" type="string">
+  Give your configuration a new name
+</ParamField>
+
+### Examples
+
+#### Update connection credentials
+
+```bash
+wrangler hyperdrive update 01234567-89ab-cdef-0123-456789abcdef \
+  --origin-user="newuser" \
+  --origin-password="newpassword"
+```
+
+#### Update caching settings
+
+```bash
+wrangler hyperdrive update 01234567-89ab-cdef-0123-456789abcdef \
+  --max-age=120 \
+  --swr=30
+```
+
+#### Disable caching
+
+```bash
+wrangler hyperdrive update 01234567-89ab-cdef-0123-456789abcdef \
+  --caching-disabled
+```
+
+## Configuration
+
+After creating a Hyperdrive configuration, add it to your Worker:
+
+```json wrangler.json
+{
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "01234567-89ab-cdef-0123-456789abcdef"
+    }
+  ]
+}
+```
+
+Then use it in your Worker:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    // Connect to your database through Hyperdrive
+    const client = await env.HYPERDRIVE.connect();
+    
+    try {
+      // Execute queries
+      const result = await client.query('SELECT * FROM users WHERE id = $1', [1]);
+      return Response.json(result.rows);
+    } finally {
+      await client.end();
+    }
+  },
+};
+```
+
+## SSL/TLS Configuration
+
+Hyperdrive supports three SSL modes for PostgreSQL:
+
+### require
+
+Requires an SSL connection but does not verify the server certificate.
+
+```bash
+wrangler hyperdrive create my-db \
+  --connection-string="postgresql://user:password@database.example.com:5432/mydb" \
+  --sslmode="require"
+```
+
+### verify-ca
+
+Requires an SSL connection and verifies that the server certificate is issued by a trusted CA.
+
+```bash
+wrangler hyperdrive create my-db \
+  --connection-string="postgresql://user:password@database.example.com:5432/mydb" \
+  --sslmode="verify-ca" \
+  --ca-certificate-id="abc123-def456"
+```
+
+<Note>
+  When using `verify-ca` or `verify-full`, you must provide a CA certificate ID.
+</Note>
+
+### verify-full
+
+Requires an SSL connection, verifies the CA, and verifies that the server hostname matches the certificate.
+
+```bash
+wrangler hyperdrive create my-db \
+  --connection-string="postgresql://user:password@database.example.com:5432/mydb" \
+  --sslmode="verify-full" \
+  --ca-certificate-id="abc123-def456"
+```
+
+## Mutual TLS (mTLS)
+
+For databases requiring client certificate authentication:
+
+```bash
+wrangler hyperdrive create my-db \
+  --connection-string="postgresql://user:password@database.example.com:5432/mydb" \
+  --sslmode="verify-full" \
+  --ca-certificate-id="abc123-def456" \
+  --mtls-certificate-id="xyz789-uvw012"
+```
+
+## Database Support
+
+Hyperdrive supports:
+- PostgreSQL and PostgreSQL-compatible databases (e.g., CockroachDB, Neon, Supabase)
+- MySQL and MySQL-compatible databases (e.g., PlanetScale, Vitess)
+
+Default ports:
+- PostgreSQL: 5432
+- MySQL: 3306

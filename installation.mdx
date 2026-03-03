@@ -1,0 +1,507 @@
+---
+title: "Installation"
+description: "Install and configure the Cloudflare Workers SDK for your development environment"
+---
+
+## Prerequisites
+
+Before installing the Workers SDK, ensure your system meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    **Required**: Node.js 20.0.0 or higher
+    
+    Check your version: `node --version`
+  </Card>
+  
+  <Card title="Package Manager" icon="box">
+    npm, pnpm, or yarn
+    
+    Recommended: **pnpm** for faster installs
+  </Card>
+</CardGroup>
+
+### Operating System Support
+
+<Note>
+  Wrangler is supported on:
+  - **macOS**: 13.5 or later
+  - **Windows**: Windows 11
+  - **Linux**: Distributions with glibc 2.35 or later
+
+  This follows the [workerd OS support policy](https://github.com/cloudflare/workerd).
+</Note>
+
+## Installation Methods
+
+There are several ways to install and use the Workers SDK depending on your workflow.
+
+### Method 1: Create a New Project (Recommended)
+
+The fastest way to get started is using Create Cloudflare (C3), which scaffolds a complete project:
+
+<Steps>
+  <Step title="Run the create command">
+    <CodeGroup>
+    ```bash npm
+    npm create cloudflare@latest
+    ```
+
+    ```bash pnpm
+    pnpm create cloudflare@latest
+    ```
+
+    ```bash yarn
+    yarn create cloudflare@latest
+    ```
+    </CodeGroup>
+
+    This installs the latest version of `create-cloudflare` and runs the interactive setup wizard.
+  </Step>
+
+  <Step title="Follow the prompts">
+    C3 will guide you through:
+    - Project name and directory
+    - Template selection (Hello World, frameworks, etc.)
+    - TypeScript or JavaScript
+    - Git initialization
+    - Deployment option
+  </Step>
+
+  <Step title="Start developing">
+    ```bash
+    cd your-project-name
+    npm run dev
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  C3 automatically installs Wrangler and all necessary dependencies for your chosen template.
+</Tip>
+
+### Method 2: Install Wrangler Globally
+
+Install Wrangler globally to use it across multiple projects:
+
+<CodeGroup>
+```bash npm
+npm install -g wrangler
+```
+
+```bash pnpm
+pnpm add -g wrangler
+```
+
+```bash yarn
+yarn global add wrangler
+```
+</CodeGroup>
+
+Verify the installation:
+
+```bash
+wrangler --version
+# wrangler 4.69.0
+```
+
+<Warning>
+  Global installations may conflict with project-specific versions. Consider using npx or project-local installations for better version control.
+</Warning>
+
+### Method 3: Install as Project Dependency
+
+Add Wrangler to an existing project:
+
+<Steps>
+  <Step title="Install Wrangler">
+    <CodeGroup>
+    ```bash npm
+    npm install wrangler --save-dev
+    ```
+
+    ```bash pnpm
+    pnpm add -D wrangler
+    ```
+
+    ```bash yarn
+    yarn add -D wrangler
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Add scripts to package.json">
+    ```json package.json
+    {
+      "scripts": {
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy",
+        "tail": "wrangler tail"
+      },
+      "devDependencies": {
+        "wrangler": "^4.69.0"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Run with npm scripts">
+    ```bash
+    npm run dev
+    ```
+  </Step>
+</Steps>
+
+### Method 4: Use npx (No Installation)
+
+Run Wrangler commands without installing:
+
+```bash
+npx wrangler@latest dev
+npx wrangler@latest deploy
+```
+
+<Note>
+  npx downloads and runs the latest version each time. This ensures you always have the newest version but may be slower.
+</Note>
+
+## Installing Additional Packages
+
+Depending on your use case, you may want to install additional Workers SDK packages:
+
+### Miniflare (Local Development Runtime)
+
+Miniflare is included with Wrangler but can be used standalone:
+
+<CodeGroup>
+```bash npm
+npm install miniflare --save-dev
+```
+
+```bash pnpm
+pnpm add -D miniflare
+```
+
+```bash yarn
+yarn add -D miniflare
+```
+</CodeGroup>
+
+Current version: `4.20260305.0`
+
+<Accordion title="Using Miniflare Programmatically">
+  ```typescript
+  import { Miniflare } from "miniflare";
+
+  const mf = new Miniflare({
+    script: `export default {
+      async fetch(request, env, ctx) {
+        return new Response("Hello Miniflare!");
+      }
+    }`,
+  });
+
+  const response = await mf.dispatchFetch("http://localhost:8787/");
+  console.log(await response.text());
+  ```
+</Accordion>
+
+### Workers Types (TypeScript Support)
+
+Add TypeScript definitions for the Workers runtime:
+
+<CodeGroup>
+```bash npm
+npm install @cloudflare/workers-types --save-dev
+```
+
+```bash pnpm
+pnpm add -D @cloudflare/workers-types
+```
+
+```bash yarn
+yarn add -D @cloudflare/workers-types
+```
+</CodeGroup>
+
+Then configure `tsconfig.json`:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"]
+  }
+}
+```
+
+### Vitest Pool Workers (Testing)
+
+For testing Workers with Vitest in the actual runtime:
+
+<CodeGroup>
+```bash npm
+npm install @cloudflare/vitest-pool-workers --save-dev
+```
+
+```bash pnpm
+pnpm add -D @cloudflare/vitest-pool-workers
+```
+
+```bash yarn
+yarn add -D @cloudflare/vitest-pool-workers
+```
+</CodeGroup>
+
+Configure `vitest.config.js`:
+
+```javascript vitest.config.js
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: { configPath: "./wrangler.jsonc" },
+      },
+    },
+  },
+});
+```
+
+## Configuration
+
+After installation, configure your Worker with a `wrangler.jsonc`, `wrangler.json`, or `wrangler.toml` file:
+
+<CodeGroup>
+```jsonc wrangler.jsonc (Recommended)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-worker",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-03-03",
+  // Add your bindings here
+  "vars": {
+    "ENVIRONMENT": "production"
+  }
+}
+```
+
+```json wrangler.json
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-worker",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-03-03"
+}
+```
+
+```toml wrangler.toml
+name = "my-worker"
+main = "./src/index.ts"
+compatibility_date = "2026-03-03"
+
+[vars]
+ENVIRONMENT = "production"
+```
+</CodeGroup>
+
+<Tip>
+  Use `wrangler.jsonc` for better editor support with comments and the `$schema` field for autocomplete.
+</Tip>
+
+## Authentication
+
+Before deploying Workers, authenticate with Cloudflare:
+
+<Steps>
+  <Step title="Log in to Cloudflare">
+    ```bash
+    wrangler login
+    ```
+
+    This opens a browser window to authorize Wrangler.
+  </Step>
+
+  <Step title="Verify authentication">
+    ```bash
+    wrangler whoami
+    ```
+
+    You should see your account email and account ID.
+  </Step>
+</Steps>
+
+<AccordionGroup>
+  <Accordion title="Using API Tokens">
+    For CI/CD environments, use API tokens instead:
+
+    1. Create an API token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+    2. Use the "Edit Cloudflare Workers" template
+    3. Set the `CLOUDFLARE_API_TOKEN` environment variable:
+
+    ```bash
+    export CLOUDFLARE_API_TOKEN=your-api-token
+    ```
+  </Accordion>
+
+  <Accordion title="Using Account ID and API Key">
+    Legacy authentication (not recommended):
+
+    ```bash
+    export CLOUDFLARE_ACCOUNT_ID=your-account-id
+    export CLOUDFLARE_API_KEY=your-api-key
+    export CLOUDFLARE_EMAIL=your-email
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Version Management
+
+### Checking Versions
+
+Check installed package versions:
+
+```bash
+# Wrangler version
+wrangler --version
+
+# All package versions in your project
+npm list wrangler miniflare @cloudflare/workers-types
+```
+
+### Updating Packages
+
+Keep your Workers SDK packages up to date:
+
+<CodeGroup>
+```bash npm
+npm update wrangler
+```
+
+```bash pnpm
+pnpm update wrangler
+```
+
+```bash yarn
+yarn upgrade wrangler
+```
+</CodeGroup>
+
+To upgrade to the latest version:
+
+<CodeGroup>
+```bash npm
+npm install wrangler@latest
+```
+
+```bash pnpm
+pnpm add -D wrangler@latest
+```
+
+```bash yarn
+yarn add -D wrangler@latest
+```
+</CodeGroup>
+
+### Beta Releases
+
+<Warning>
+  Beta releases are updated frequently and not suitable for production. Use only for testing unreleased features.
+</Warning>
+
+Install beta releases from the main branch:
+
+```bash
+npm install https://pkg.pr.new/wrangler@main
+```
+
+Available beta packages:
+- `wrangler@main`
+- `create-cloudflare@main`
+- `miniflare@main`
+- `@cloudflare/vitest-pool-workers@main`
+
+## Workspace Setup (Monorepo)
+
+For monorepo setups using pnpm workspaces:
+
+```yaml pnpm-workspace.yaml
+packages:
+  - 'packages/*'
+  - 'apps/*'
+```
+
+Install Wrangler at the workspace root:
+
+```bash
+pnpm add -Dw wrangler
+```
+
+Each package can have its own `wrangler.jsonc` configuration.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Node.js version too old">
+    Error: `This version of Wrangler requires at least Node.js v20.0.0`
+
+    **Solution**: Update Node.js using [nvm](https://github.com/nvm-sh/nvm) or download from [nodejs.org](https://nodejs.org)
+
+    ```bash
+    nvm install 20
+    nvm use 20
+    ```
+  </Accordion>
+
+  <Accordion title="EACCES permission errors">
+    Permission errors when installing globally:
+
+    **Solution**: Use a Node version manager (nvm) or install in a project directory instead of globally.
+  </Accordion>
+
+  <Accordion title="Module resolution errors">
+    Cannot find module `wrangler`:
+
+    **Solution**: Ensure you're in the correct directory and dependencies are installed:
+
+    ```bash
+    npm install
+    ```
+  </Accordion>
+
+  <Accordion title="Platform-specific issues">
+    **Windows**: Make sure you're using Windows 11. Windows 10 is not supported.
+    
+    **Linux**: Verify glibc version:
+    ```bash
+    ldd --version
+    ```
+    
+    You need glibc 2.35 or higher.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have the Workers SDK installed:
+
+<CardGroup cols={2}>
+  <Card title="Create Your First Worker" icon="rocket" href="/quickstart">
+    Follow the quickstart guide to build and deploy
+  </Card>
+
+  <Card title="Configure Your Worker" icon="gear" href="/development/configuration">
+    Learn about configuration options
+  </Card>
+
+  <Card title="Set Up Testing" icon="flask" href="/development/testing">
+    Configure Vitest for Workers testing
+  </Card>
+</CardGroup>
+
+<Note>
+  For detailed documentation on all configuration options, see the [official Wrangler documentation](https://developers.cloudflare.com/workers/wrangler/configuration/).
+</Note>

@@ -1,0 +1,633 @@
+---
+title: 'Durable Objects'
+description: 'Manage stateful, globally coordinated Durable Objects'
+---
+
+## Overview
+
+Durable Objects provide low-latency coordination and consistent storage for stateful applications. Each Durable Object has a unique ID and guaranteed single-instance execution.
+
+## What are Durable Objects?
+
+Durable Objects are:
+- **Stateful** - Maintain in-memory state and persistent storage
+- **Single-threaded** - One instance per ID, no concurrency within an object
+- **Globally distributed** - Automatically placed close to users
+- **Strongly consistent** - All requests to an object see the same state
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Real-time Collaboration" icon="users">
+    - Collaborative editing (docs, whiteboards)
+    - Multiplayer games
+    - Chat rooms and messaging
+    - Live cursors and presence
+  </Card>
+
+  <Card title="Coordination" icon="arrows">
+    - Distributed locks
+    - Leader election
+    - Rate limiting per user
+    - Sequential processing
+  </Card>
+
+  <Card title="State Management" icon="database">
+    - User sessions
+    - Shopping carts
+    - Connection pooling
+    - Cached aggregations
+  </Card>
+
+  <Card title="Real-time Features" icon="bolt">
+    - WebSocket connections
+    - Server-sent events
+    - Live updates and notifications
+    - Presence tracking
+  </Card>
+</CardGroup>
+
+## Migrations
+
+Durable Objects use migrations to track class bindings and lifecycle.
+
+### Configuration
+
+Define Durable Objects in your wrangler.json:
+
+```json wrangler.json
+{
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "COUNTER",
+        "class_name": "Counter",
+        "script_name": "my-worker"
+      },
+      {
+        "name": "CHAT_ROOM",
+        "class_name": "ChatRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["Counter"]
+    },
+    {
+      "tag": "v2",
+      "new_classes": ["ChatRoom"],
+      "renamed_classes": [
+        {"from": "OldCounter", "to": "Counter"}
+      ]
+    },
+    {
+      "tag": "v3",
+      "deleted_classes": ["OldCounter"]
+    }
+  ]
+}
+```
+
+### Migration Types
+
+<Tabs>
+  <Tab title="New Classes">
+    Add a new Durable Object class:
+
+    ```json
+    {
+      "tag": "v1",
+      "new_classes": ["Counter", "ChatRoom"]
+    }
+    ```
+
+    Creates new classes that can be instantiated.
+  </Tab>
+
+  <Tab title="Rename Classes">
+    Rename an existing class:
+
+    ```json
+    {
+      "tag": "v2",
+      "renamed_classes": [
+        {"from": "OldCounter", "to": "Counter"}
+      ]
+    }
+    ```
+
+    Preserves existing instances under the new name.
+  </Tab>
+
+  <Tab title="Delete Classes">
+    Remove a class (deletes all instances):
+
+    ```json
+    {
+      "tag": "v3",
+      "deleted_classes": ["OldCounter"]
+    }
+    ```
+
+    <Warning>
+    Deleting a class permanently removes all instances and their data.
+    </Warning>
+  </Tab>
+
+  <Tab title="Transfer">
+    Transfer classes between scripts:
+
+    ```json
+    {
+      "tag": "v4",
+      "transferred_classes": [
+        {
+          "from": "old-worker",
+          "from_script": "old-worker",
+          "to": "Counter"
+        }
+      ]
+    }
+    ```
+
+    Moves class implementation to a different Worker.
+  </Tab>
+</Tabs>
+
+## Implementation
+
+### Basic Durable Object
+
+Create a simple counter:
+
+```typescript
+export class Counter {
+  private value: number = 0;
+  private state: DurableObjectState;
+
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state;
+    // Restore state from storage
+    this.state.blockConcurrencyWhile(async () => {
+      this.value = (await this.state.storage.get('value')) || 0;
+    });
+  }
+
+  async fetch(request: Request) {
+    const url = new URL(request.url);
+
+    switch (url.pathname) {
+      case '/increment':
+        this.value++;
+        await this.state.storage.put('value', this.value);
+        return new Response(String(this.value));
+
+      case '/decrement':
+        this.value--;
+        await this.state.storage.put('value', this.value);
+        return new Response(String(this.value));
+
+      case '/get':
+        return new Response(String(this.value));
+
+      default:
+        return new Response('Not found', { status: 404 });
+    }
+  }
+}
+```
+
+### Worker Integration
+
+Access Durable Objects from your Worker:
+
+```typescript
+export default {
+  async fetch(request, env) {
+    // Get or create a Durable Object instance
+    const id = env.COUNTER.idFromName('global');
+    const stub = env.COUNTER.get(id);
+
+    // Forward request to the Durable Object
+    const response = await stub.fetch(request);
+    return response;
+  }
+};
+
+export { Counter } from './counter';
+```
+
+### ID Generation
+
+<Tabs>
+  <Tab title="Named IDs">
+    Create deterministic IDs from strings:
+
+    ```typescript
+    // Same name always returns same ID
+    const id = env.COUNTER.idFromName('user-123');
+    const id2 = env.COUNTER.idFromName('user-123');
+    // id === id2 (same instance)
+    ```
+
+    **Use Cases:**
+    - User-specific objects
+    - Room/channel IDs
+    - Resource-based routing
+  </Tab>
+
+  <Tab title="Random IDs">
+    Generate unique random IDs:
+
+    ```typescript
+    // Each call creates a new unique ID
+    const id1 = env.COUNTER.newUniqueId();
+    const id2 = env.COUNTER.newUniqueId();
+    // id1 !== id2 (different instances)
+    ```
+
+    **Use Cases:**
+    - One-time sessions
+    - Temporary resources
+    - Unique entities
+  </Tab>
+
+  <Tab title="String IDs">
+    Parse IDs from strings:
+
+    ```typescript
+    // Convert stored/transmitted ID back to object
+    const idString = id.toString();
+    const parsedId = env.COUNTER.idFromString(idString);
+
+    // Validate and extract hex ID
+    const hexId = id.toHexString();
+    ```
+
+    **Use Cases:**
+    - URL parameters
+    - Database references
+    - Client-side storage
+  </Tab>
+</Tabs>
+
+## Storage API
+
+### Key-Value Operations
+
+```typescript
+export class MyDurableObject {
+  constructor(private state: DurableObjectState, private env: Env) {}
+
+  async fetch(request: Request) {
+    const storage = this.state.storage;
+
+    // Put a value
+    await storage.put('key', 'value');
+
+    // Put multiple values
+    await storage.put({
+      'key1': 'value1',
+      'key2': 'value2',
+      'key3': 'value3'
+    });
+
+    // Get a value
+    const value = await storage.get('key');
+
+    // Get multiple values
+    const values = await storage.get(['key1', 'key2']);
+    // Returns: Map { 'key1' => 'value1', 'key2' => 'value2' }
+
+    // Delete a value
+    await storage.delete('key');
+
+    // Delete multiple values
+    await storage.delete(['key1', 'key2']);
+
+    // List keys
+    const keys = await storage.list();
+    // Returns: Map of all key-value pairs
+
+    // List with options
+    const filtered = await storage.list({
+      prefix: 'user:',
+      limit: 100,
+      reverse: false
+    });
+
+    return new Response('OK');
+  }
+}
+```
+
+### Transactions
+
+Use transactions for atomic operations:
+
+```typescript
+// Automatic transaction (recommended)
+const result = await this.state.storage.transaction(async (txn) => {
+  const balance = (await txn.get('balance')) || 0;
+  const newBalance = balance + 100;
+  await txn.put('balance', newBalance);
+  return newBalance;
+});
+
+// Manual transaction control
+await this.state.storage.put('key1', 'value1');
+await this.state.storage.put('key2', 'value2');
+// Both operations are atomic if no await between them
+```
+
+### Alarms
+
+Schedule future work:
+
+```typescript
+export class AlarmObject {
+  constructor(private state: DurableObjectState, private env: Env) {}
+
+  async fetch(request: Request) {
+    // Set an alarm for 1 hour from now
+    const now = Date.now();
+    await this.state.storage.setAlarm(now + 60 * 60 * 1000);
+
+    return new Response('Alarm set');
+  }
+
+  async alarm() {
+    // Called when alarm triggers
+    console.log('Alarm triggered!');
+
+    // Do work
+    await this.performCleanup();
+
+    // Optionally set another alarm
+    await this.state.storage.setAlarm(Date.now() + 60 * 60 * 1000);
+  }
+
+  async performCleanup() {
+    // Your cleanup logic
+  }
+}
+```
+
+## WebSockets
+
+Handle real-time connections:
+
+```typescript
+export class ChatRoom {
+  private sessions: Set<WebSocket> = new Set();
+
+  constructor(private state: DurableObjectState, private env: Env) {
+    // Accept WebSocket hibernation
+    this.state.acceptWebSocketHibernation = true;
+  }
+
+  async fetch(request: Request) {
+    if (request.headers.get('Upgrade') === 'websocket') {
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+
+      // Accept the WebSocket
+      this.state.acceptWebSocket(server);
+      this.sessions.add(server);
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client
+      });
+    }
+
+    return new Response('Expected WebSocket', { status: 400 });
+  }
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    // Broadcast to all connected clients
+    for (const session of this.sessions) {
+      if (session !== ws && session.readyState === WebSocket.OPEN) {
+        session.send(message);
+      }
+    }
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string) {
+    this.sessions.delete(ws);
+  }
+
+  async webSocketError(ws: WebSocket, error: Error) {
+    console.error('WebSocket error:', error);
+    this.sessions.delete(ws);
+  }
+}
+```
+
+## Lifecycle Handlers
+
+```typescript
+export class MyDurableObject {
+  constructor(private state: DurableObjectState, private env: Env) {
+    // Initialize during construction
+    this.state.blockConcurrencyWhile(async () => {
+      // Load initial state
+      const data = await this.state.storage.get('data');
+      this.initializeWithData(data);
+    });
+  }
+
+  // Handle HTTP requests
+  async fetch(request: Request) {
+    return new Response('OK');
+  }
+
+  // Handle scheduled alarms
+  async alarm() {
+    // Called when alarm triggers
+  }
+
+  // Handle WebSocket messages
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    // Handle incoming message
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string) {
+    // Handle connection close
+  }
+
+  async webSocketError(ws: WebSocket, error: Error) {
+    // Handle WebSocket errors
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="State Management" icon="database">
+    - Keep in-memory state small
+    - Persist critical data to storage
+    - Use blockConcurrencyWhile() for initialization
+    - Clean up unused data regularly
+  </Card>
+
+  <Card title="Performance" icon="gauge">
+    - Batch storage operations
+    - Use transactions for atomicity
+    - Minimize state.storage calls
+    - Cache frequently accessed data
+  </Card>
+
+  <Card title="Migrations" icon="code">
+    - Always add migration tags
+    - Test migrations in preview first
+    - Use renamed_classes to preserve data
+    - Never skip migration tags
+  </Card>
+
+  <Card title="WebSockets" icon="wifi">
+    - Enable hibernation for efficiency
+    - Handle errors gracefully
+    - Track connection state
+    - Implement heartbeat/ping
+  </Card>
+</CardGroup>
+
+## Concurrency Control
+
+### Block Concurrency
+
+```typescript
+// Block all requests during initialization
+await this.state.blockConcurrencyWhile(async () => {
+  // This code runs exclusively
+  const data = await this.state.storage.get('data');
+  this.initialize(data);
+});
+```
+
+### Input Gates
+
+```typescript
+// Wait for condition before accepting requests
+await this.state.waitUntil(this.initializationPromise);
+```
+
+## Limits
+
+- **Storage per object**: 50 GB
+- **CPU time per request**: 30 seconds
+- **Concurrent requests**: Serialized (one at a time)
+- **WebSockets per object**: Unlimited
+- **Alarm frequency**: Minimum 30 seconds
+
+## Common Patterns
+
+<AccordionGroup>
+  <Accordion title="Rate Limiting">
+    ```typescript
+    export class RateLimiter {
+      private requests: number[] = [];
+
+      async fetch(request: Request) {
+        const now = Date.now();
+        const windowMs = 60000; // 1 minute
+        const limit = 100;
+
+        // Remove old requests
+        this.requests = this.requests.filter(t => t > now - windowMs);
+
+        if (this.requests.length >= limit) {
+          return new Response('Rate limit exceeded', { status: 429 });
+        }
+
+        this.requests.push(now);
+        return new Response('OK');
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Distributed Lock">
+    ```typescript
+    export class DistributedLock {
+      private locked = false;
+      private queue: Array<() => void> = [];
+
+      async fetch(request: Request) {
+        const url = new URL(request.url);
+
+        if (url.pathname === '/acquire') {
+          await this.acquire();
+          return new Response('Locked');
+        }
+
+        if (url.pathname === '/release') {
+          this.release();
+          return new Response('Unlocked');
+        }
+
+        return new Response('Unknown', { status: 400 });
+      }
+
+      private async acquire() {
+        if (!this.locked) {
+          this.locked = true;
+          return;
+        }
+
+        // Wait in queue
+        await new Promise<void>(resolve => {
+          this.queue.push(resolve);
+        });
+      }
+
+      private release() {
+        const next = this.queue.shift();
+        if (next) {
+          next();
+        } else {
+          this.locked = false;
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Connection Pool">
+    ```typescript
+    export class ConnectionPool {
+      private connections: Map<string, WebSocket> = new Map();
+
+      async webSocketMessage(ws: WebSocket, message: string) {
+        // Route message to specific connection
+        const data = JSON.parse(message);
+        const target = this.connections.get(data.to);
+
+        if (target) {
+          target.send(message);
+        }
+      }
+
+      async webSocketClose(ws: WebSocket) {
+        // Clean up on disconnect
+        for (const [id, socket] of this.connections) {
+          if (socket === ws) {
+            this.connections.delete(id);
+            break;
+          }
+        }
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Commands
+
+- [Queues](/platform/queues) - Asynchronous messaging
+- [KV Storage](/platform/kv-storage) - Global key-value storage
+- [D1 Database](/platform/d1-database) - SQL database

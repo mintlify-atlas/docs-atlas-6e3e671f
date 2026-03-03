@@ -1,0 +1,338 @@
+---
+title: 'wrangler setup'
+description: 'Setup a project to work on Cloudflare'
+---
+
+The `wrangler setup` command automatically configures your project to deploy to Cloudflare by detecting your framework and adding the necessary configuration.
+
+```bash
+wrangler setup
+```
+
+## Options
+
+<ParamField path="--yes" type="boolean" short="y" default="false">
+  Answer "yes" to any prompts for configuring your project
+</ParamField>
+
+<ParamField path="--build" type="boolean" default="false">
+  Run your project's build command once it has been configured
+</ParamField>
+
+<ParamField path="--dry-run" type="boolean">
+  Runs the command without applying any filesystem modifications
+</ParamField>
+
+## What It Does
+
+The `wrangler setup` command:
+
+1. **Detects your framework** - Automatically identifies popular frameworks (Next.js, Remix, SvelteKit, Astro, Nuxt, etc.)
+2. **Adds Wrangler configuration** - Creates or updates `wrangler.json` with appropriate settings
+3. **Installs dependencies** - Adds necessary packages for Cloudflare deployment
+4. **Configures build settings** - Sets up build commands and output directories
+5. **Creates deployment script** - Adds a deploy script to your `package.json`
+
+## Example
+
+```bash
+# Basic setup
+wrangler setup
+
+# Auto-confirm all prompts
+wrangler setup --yes
+
+# Setup and run build
+wrangler setup --build
+
+# Preview changes without applying them
+wrangler setup --dry-run
+```
+
+## Supported Frameworks
+
+Wrangler automatically detects and configures:
+
+- **Next.js** - Configures for Pages with static export or SSR
+- **Remix** - Sets up Cloudflare Workers adapter
+- **SvelteKit** - Configures Cloudflare adapter
+- **Astro** - Sets up Cloudflare adapter
+- **Nuxt** - Configures Cloudflare preset
+- **Solid Start** - Sets up Cloudflare adapter
+- **Qwik** - Configures Cloudflare adapter
+- **Analog** - Sets up Cloudflare adapter
+- **React** (Vite/Create React App) - Configures for static deployment
+- **Vue** - Sets up for static deployment
+- **Angular** - Configures for static deployment
+
+## Complete Workflow
+
+<Steps>
+  <Step title="Initialize your project">
+    If you don't have a project yet, create one with your framework's CLI:
+    
+    ```bash
+    # Next.js
+    npx create-next-app@latest my-app
+    
+    # Remix
+    npx create-remix@latest my-app
+    
+    # SvelteKit
+    npm create svelte@latest my-app
+    
+    # Astro
+    npm create astro@latest my-app
+    ```
+  </Step>
+
+  <Step title="Navigate to your project">
+    ```bash
+    cd my-app
+    ```
+  </Step>
+
+  <Step title="Run setup">
+    ```bash
+    wrangler setup
+    ```
+    
+    The setup wizard will:
+    - Detect your framework
+    - Ask for confirmation before making changes
+    - Install required packages
+    - Update configuration files
+  </Step>
+
+  <Step title="Review the changes">
+    Check the generated `wrangler.json` and updated `package.json`:
+    
+    ```json wrangler.json
+    {
+      "name": "my-app",
+      "compatibility_date": "2024-01-01",
+      "pages_build_output_dir": "dist"
+    }
+    ```
+    
+    ```json package.json
+    {
+      "scripts": {
+        "deploy": "wrangler pages deploy"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Deploy your project">
+    ```bash
+    npm run deploy
+    ```
+  </Step>
+</Steps>
+
+## Interactive Setup Example
+
+When you run `wrangler setup`, you'll see prompts like:
+
+```bash
+$ wrangler setup
+
+🔍 Detected Next.js project
+
+📦 Installing @cloudflare/next-on-pages...
+
+✅ Added Cloudflare adapter
+
+📝 Created wrangler.json with:
+   - name: my-next-app
+   - compatibility_date: 2024-01-01
+   - pages_build_output_dir: .vercel/output/static
+
+✨ Added deploy script to package.json
+
+🎉 Your project is now setup to deploy to Cloudflare
+
+You can now deploy with: npm run deploy
+```
+
+## Configuration Output
+
+After setup, your project will have:
+
+### wrangler.json
+
+```json wrangler.json
+{
+  "name": "my-app",
+  "compatibility_date": "2024-01-01",
+  "pages_build_output_dir": "dist"
+}
+```
+
+### package.json Updates
+
+```json package.json
+{
+  "scripts": {
+    "deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
+```
+
+## Dry Run Mode
+
+Use `--dry-run` to preview changes without applying them:
+
+```bash
+wrangler setup --dry-run
+```
+
+Output:
+```
+[DRY RUN] Would install: @cloudflare/next-on-pages
+[DRY RUN] Would create: wrangler.json
+[DRY RUN] Would update: package.json with deploy script
+[DRY RUN] Would update: next.config.js with Cloudflare settings
+
+No changes were made (dry run mode)
+```
+
+## Auto-Confirm Mode
+
+Skip all prompts with `--yes`:
+
+```bash
+wrangler setup --yes
+```
+
+Useful for:
+- CI/CD pipelines
+- Automated project initialization
+- When you trust the auto-detected configuration
+
+## Framework-Specific Configuration
+
+### Next.js
+
+```bash
+wrangler setup
+```
+
+Adds:
+- `@cloudflare/next-on-pages` package
+- Cloudflare adapter to `next.config.js`
+- Build output directory configuration
+
+### Remix
+
+```bash
+wrangler setup
+```
+
+Adds:
+- `@remix-run/cloudflare` adapter
+- Cloudflare preset to `remix.config.js`
+- Worker configuration
+
+### SvelteKit
+
+```bash
+wrangler setup
+```
+
+Adds:
+- `@sveltejs/adapter-cloudflare` package
+- Adapter configuration to `svelte.config.js`
+- Build settings
+
+## Manual Configuration
+
+If auto-detection doesn't work for your project, you can manually create `wrangler.json`:
+
+```json wrangler.json
+{
+  "name": "my-custom-project",
+  "compatibility_date": "2024-01-01",
+  "pages_build_output_dir": "build",
+  "node_compat": true
+}
+```
+
+Then install Wrangler:
+
+```bash
+npm install -D wrangler
+```
+
+## Completion Message
+
+After successful setup, you'll see:
+
+```
+🎉 Your project is now setup to deploy to Cloudflare
+
+You can now deploy with: npm run deploy
+```
+
+Or if already configured:
+
+```
+🎉 Your project is already setup to deploy to Cloudflare
+
+You can now deploy with: npm run deploy
+```
+
+## Troubleshooting
+
+**Framework not detected:**
+
+If your framework isn't automatically detected, you can:
+1. Manually create `wrangler.json`
+2. Use `wrangler init` for a basic Worker project
+3. Check if your framework has a Cloudflare adapter package
+
+**Setup fails during package installation:**
+
+Ensure you're using a compatible package manager:
+```bash
+# Use the same package manager as your project
+npm install  # for npm projects
+pnpm install # for pnpm projects  
+yarn install # for yarn projects
+```
+
+**Configuration conflicts:**
+
+If you have existing Wrangler configuration, setup will merge or prompt you to confirm overwrites.
+
+## Next Steps After Setup
+
+1. **Test locally**
+   ```bash
+   wrangler pages dev
+   ```
+
+2. **Configure environment variables**
+   ```bash
+   wrangler secret put API_KEY
+   ```
+
+3. **Deploy to production**
+   ```bash
+   npm run deploy
+   ```
+
+4. **Set up CI/CD**
+   Add `npm run deploy` to your GitHub Actions or other CI pipeline
+
+## Best Practices
+
+- **Run setup in a clean working directory** - Commit or stash changes before running setup
+- **Review changes** - Check what files were modified after setup completes
+- **Test deployment locally first** - Use `wrangler pages dev` before deploying
+- **Use version control** - Commit `wrangler.json` and `package.json` changes
+- **Update compatibility date** - Keep the `compatibility_date` in `wrangler.json` current

@@ -1,0 +1,555 @@
+---
+title: Vitest Pool Workers API
+description: Run Vitest tests inside the actual workerd runtime with the @cloudflare/vitest-pool-workers package.
+---
+
+`@cloudflare/vitest-pool-workers` is a custom Vitest pool that runs your tests inside the actual Cloudflare Workers runtime (`workerd`), providing an authentic testing environment with access to all Workers APIs and bindings.
+
+## Installation
+
+```bash
+npm install -D @cloudflare/vitest-pool-workers
+```
+
+## Configuration
+
+### `defineWorkersConfig()`
+
+Define a Vitest config for testing Workers.
+
+```typescript
+// vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: { configPath: "./wrangler.toml" },
+      },
+    },
+  },
+});
+```
+
+<ParamField path="config" type="WorkersUserConfigExport" required>
+  Vitest configuration object
+
+  <Expandable title="Config properties">
+    <ParamField path="test.poolOptions.workers" type="WorkersPoolOptions">
+      Workers-specific pool options
+
+      <Expandable title="WorkersPoolOptions">
+        <ParamField path="wrangler" type="object">
+          Wrangler configuration
+
+          <Expandable title="Wrangler options">
+            <ParamField path="configPath" type="string">
+              Path to wrangler.toml
+            </ParamField>
+
+            <ParamField path="environment" type="string">
+              Environment to use from config
+            </ParamField>
+          </Expandable>
+        </ParamField>
+
+        <ParamField path="miniflare" type="MiniflareOptions">
+          Miniflare configuration options (see [Miniflare Options](/api/miniflare-options))
+        </ParamField>
+
+        <ParamField path="main" type="string">
+          Path to Worker entry point
+        </ParamField>
+
+        <ParamField path="isolatedStorage" type="boolean" default="false">
+          Whether each test file gets isolated storage
+        </ParamField>
+
+        <ParamField path="singleWorker" type="boolean" default="false">
+          Run all tests in a single Worker instance
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="config" type="WorkersUserConfigExport">
+  Enhanced Vitest configuration with Workers pool settings
+</ResponseField>
+
+---
+
+### `defineWorkersProject()`
+
+Define a workspace project config for Workers testing.
+
+```typescript
+// vitest.workspace.ts
+import { defineWorkersProject } from "@cloudflare/vitest-pool-workers/config";
+
+export default [
+  defineWorkersProject({
+    test: {
+      name: "unit",
+      poolOptions: {
+        workers: {
+          wrangler: { configPath: "./wrangler.toml" },
+        },
+      },
+    },
+  }),
+  defineWorkersProject({
+    test: {
+      name: "integration",
+      poolOptions: {
+        workers: {
+          wrangler: { configPath: "./wrangler.integration.toml" },
+          isolatedStorage: true,
+        },
+      },
+    },
+  }),
+];
+```
+
+---
+
+## Test Runtime API
+
+The `cloudflare:test` module provides utilities for testing Workers inside the runtime.
+
+### `env`
+
+Access Worker bindings in tests.
+
+```typescript
+import { env } from "cloudflare:test";
+import { expect, it } from "vitest";
+
+it("should access KV", async () => {
+  await env.MY_KV.put("key", "value");
+  const value = await env.MY_KV.get("key");
+  expect(value).toBe("value");
+});
+
+it("should query D1", async () => {
+  const { results } = await env.DB.prepare("SELECT * FROM users").all();
+  expect(results).toHaveLength(0);
+});
+```
+
+<ResponseField name="env" type="Env">
+  Environment object containing all Worker bindings defined in your Wrangler config:
+  - KV namespaces
+  - D1 databases
+  - R2 buckets
+  - Durable Objects
+  - Service bindings
+  - Queue producers
+  - Environment variables
+</ResponseField>
+
+---
+
+### `SELF`
+
+Reference to the current Worker for making fetch requests.
+
+```typescript
+import { SELF } from "cloudflare:test";
+import { expect, it } from "vitest";
+
+it("should handle requests", async () => {
+  const response = await SELF.fetch("https://example.com/");
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe("Hello World");
+});
+
+it("should handle POST requests", async () => {
+  const response = await SELF.fetch("https://example.com/api/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Alice" }),
+  });
+  expect(response.status).toBe(201);
+});
+```
+
+<ResponseField name="SELF" type="Fetcher">
+  Fetcher object for the current Worker
+
+  <Expandable title="Fetcher methods">
+    <ResponseField name="fetch" type="(input: RequestInfo, init?: RequestInit) => Promise<Response>">
+      Send a request to the Worker
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `fetchMock`
+
+Mock outbound fetch requests from your Worker.
+
+```typescript
+import { fetchMock } from "cloudflare:test";
+import { expect, it, beforeAll, afterEach } from "vitest";
+
+beforeAll(() => {
+  fetchMock.activate();
+});
+
+afterEach(() => {
+  fetchMock.assertNoPendingInterceptors();
+});
+
+it("should mock API calls", async () => {
+  // Mock a specific endpoint
+  fetchMock
+    .get("https://api.example.com")
+    .intercept({ path: "/users/1" })
+    .reply(200, { id: 1, name: "Alice" });
+
+  const response = await SELF.fetch("https://example.com/user/1");
+  const data = await response.json();
+  expect(data.name).toBe("Alice");
+});
+
+it("should mock with functions", async () => {
+  fetchMock
+    .get("https://api.example.com")
+    .intercept({ path: "/time" })
+    .reply(200, () => ({ time: Date.now() }));
+});
+
+it("should mock errors", async () => {
+  fetchMock
+    .get("https://api.example.com")
+    .intercept({ path: "/error" })
+    .reply(500, { error: "Internal Server Error" });
+});
+```
+
+<ResponseField name="fetchMock" type="FetchMock">
+  Undici MockAgent instance for mocking fetch requests
+
+  <Expandable title="FetchMock methods">
+    <ResponseField name="activate" type="() => void">
+      Enable fetch mocking
+    </ResponseField>
+
+    <ResponseField name="deactivate" type="() => void">
+      Disable fetch mocking
+    </ResponseField>
+
+    <ResponseField name="get" type="(origin: string) => MockPool">
+      Get mock pool for an origin
+    </ResponseField>
+
+    <ResponseField name="assertNoPendingInterceptors" type="() => void">
+      Assert all mocked requests were called
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `createExecutionContext()`
+
+Create an ExecutionContext for testing.
+
+```typescript
+import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { expect, it } from "vitest";
+import worker from "./index";
+
+it("should use waitUntil", async () => {
+  const ctx = createExecutionContext();
+  const request = new Request("https://example.com/");
+  
+  const response = await worker.fetch(request, env, ctx);
+  
+  await waitOnExecutionContext(ctx);
+  expect(response.status).toBe(200);
+});
+```
+
+<ParamField path="void" type="void">
+  No parameters
+</ParamField>
+
+<ResponseField name="ctx" type="ExecutionContext">
+  Execution context with `waitUntil()` and `passThroughOnException()`
+</ResponseField>
+
+---
+
+### `waitOnExecutionContext()`
+
+Wait for all `waitUntil()` promises to complete.
+
+```typescript
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+
+const ctx = createExecutionContext();
+ctx.waitUntil(someAsyncOperation());
+await waitOnExecutionContext(ctx);
+```
+
+<ParamField path="ctx" type="ExecutionContext" required>
+  Execution context to wait on
+</ParamField>
+
+<ResponseField name="void" type="Promise<void>">
+  Resolves when all waitUntil promises complete
+</ResponseField>
+
+---
+
+### `getQueueResult()`
+
+Get messages sent to a queue during a test.
+
+```typescript
+import { env, getQueueResult, SELF } from "cloudflare:test";
+import { expect, it } from "vitest";
+
+it("should send queue messages", async () => {
+  await SELF.fetch("https://example.com/action");
+  
+  const result = await getQueueResult(env.MY_QUEUE);
+  expect(result.messages).toHaveLength(1);
+  expect(result.messages[0].body).toEqual({ action: "process" });
+});
+```
+
+<ParamField path="queue" type="Queue" required>
+  Queue binding to get results from
+</ParamField>
+
+<ResponseField name="result" type="Promise<QueueResult>">
+  Queue result containing sent messages
+
+  <Expandable title="QueueResult properties">
+    <ResponseField name="messages" type="Message[]">
+      Array of messages sent to the queue
+
+      <Expandable title="Message properties">
+        <ResponseField name="id" type="string">
+          Message ID
+        </ResponseField>
+
+        <ResponseField name="timestamp" type="number">
+          Message timestamp
+        </ResponseField>
+
+        <ResponseField name="body" type="unknown">
+          Message body
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Testing Helpers
+
+### `runInDurableObject()`
+
+Run code inside a Durable Object instance.
+
+```typescript
+import { env, runInDurableObject } from "cloudflare:test";
+import { expect, it } from "vitest";
+import { MyDurableObject } from "./durable-object";
+
+it("should access DO storage", async () => {
+  const id = env.MY_DO.idFromName("test");
+  
+  await runInDurableObject(env.MY_DO, id, async (instance, state) => {
+    await state.storage.put("key", "value");
+    const value = await state.storage.get("key");
+    expect(value).toBe("value");
+  });
+});
+```
+
+<ParamField path="namespace" type="DurableObjectNamespace" required>
+  Durable Object namespace
+</ParamField>
+
+<ParamField path="id" type="DurableObjectId" required>
+  Durable Object ID
+</ParamField>
+
+<ParamField path="fn" type="(instance: T, state: DurableObjectState) => Promise<R>" required>
+  Function to run with access to the instance and state
+</ParamField>
+
+<ResponseField name="result" type="Promise<R>">
+  Result of the function
+</ResponseField>
+
+---
+
+## Configuration Examples
+
+### Basic Setup
+
+```typescript
+// vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: { configPath: "./wrangler.toml" },
+      },
+    },
+  },
+});
+```
+
+### With Miniflare Options
+
+```typescript
+// vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        miniflare: {
+          // Override bindings for tests
+          bindings: {
+            TEST_MODE: true,
+          },
+          kvNamespaces: {
+            TEST_KV: "test-namespace",
+          },
+        },
+      },
+    },
+  },
+});
+```
+
+### Isolated Storage
+
+```typescript
+// vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+  test: {
+    poolOptions: {
+      workers: {
+        wrangler: { configPath: "./wrangler.toml" },
+        // Each test file gets its own isolated storage
+        isolatedStorage: true,
+      },
+    },
+  },
+});
+```
+
+### Workspace Projects
+
+```typescript
+// vitest.workspace.ts
+import { defineWorkersProject } from "@cloudflare/vitest-pool-workers/config";
+
+export default [
+  defineWorkersProject({
+    test: {
+      name: "unit",
+      include: ["src/**/*.test.ts"],
+      poolOptions: {
+        workers: {
+          wrangler: { configPath: "./wrangler.toml" },
+        },
+      },
+    },
+  }),
+  defineWorkersProject({
+    test: {
+      name: "integration",
+      include: ["test/**/*.test.ts"],
+      poolOptions: {
+        workers: {
+          wrangler: { configPath: "./wrangler.integration.toml" },
+          isolatedStorage: true,
+        },
+      },
+    },
+  }),
+];
+```
+
+---
+
+## Complete Test Example
+
+```typescript
+// worker.test.ts
+import { env, SELF, fetchMock, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import worker from "./index";
+
+describe("Worker Tests", () => {
+  beforeAll(() => {
+    fetchMock.activate();
+  });
+
+  afterEach(() => {
+    fetchMock.assertNoPendingInterceptors();
+  });
+
+  it("should respond to requests", async () => {
+    const response = await SELF.fetch("https://example.com/");
+    expect(response.status).toBe(200);
+  });
+
+  it("should use KV storage", async () => {
+    await env.MY_KV.put("test-key", "test-value");
+    const value = await env.MY_KV.get("test-key");
+    expect(value).toBe("test-value");
+  });
+
+  it("should query D1", async () => {
+    await env.DB.exec(`
+      CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT);
+      INSERT INTO users (name) VALUES ('Alice');
+    `);
+    
+    const { results } = await env.DB.prepare("SELECT * FROM users").all();
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe("Alice");
+  });
+
+  it("should mock fetch requests", async () => {
+    fetchMock
+      .get("https://api.example.com")
+      .intercept({ path: "/data" })
+      .reply(200, { message: "mocked" });
+
+    const response = await SELF.fetch("https://example.com/proxy");
+    const data = await response.json();
+    expect(data.message).toBe("mocked");
+  });
+
+  it("should use execution context", async () => {
+    const ctx = createExecutionContext();
+    const request = new Request("https://example.com/async");
+    
+    const response = await worker.fetch(request, env, ctx);
+    await waitOnExecutionContext(ctx);
+    
+    expect(response.status).toBe(200);
+  });
+});
+```

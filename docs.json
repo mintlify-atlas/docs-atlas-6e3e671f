@@ -1,122 +1,171 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Cloudflare Workers SDK",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#F38020",
+    "light": "#FF9B4E",
+    "dark": "#D96F1A"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/cloudflare/workers-sdk"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/cloudflare/workers-sdk"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Tools",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "core-tools/wrangler",
+              "core-tools/miniflare",
+              "core-tools/create-cloudflare"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Development",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "development/local-development",
+              "development/configuration",
+              "development/testing",
+              "development/debugging"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Deployment",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "deployment/deploying",
+              "deployment/versioning",
+              "deployment/rollbacks",
+              "deployment/secrets"
+            ]
+          },
+          {
+            "group": "Platform Features",
+            "pages": [
+              "platform/kv-storage",
+              "platform/r2-storage",
+              "platform/d1-database",
+              "platform/queues",
+              "platform/durable-objects",
+              "platform/pages"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/assets",
+              "advanced/bindings",
+              "advanced/environments",
+              "advanced/workflows"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Command Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Essential Commands",
             "pages": [
-              "api-reference/introduction"
+              "commands/init",
+              "commands/dev",
+              "commands/deploy",
+              "commands/delete",
+              "commands/tail"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Version Management",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "commands/versions",
+              "commands/deployments",
+              "commands/rollback"
+            ]
+          },
+          {
+            "group": "Storage Commands",
+            "pages": [
+              "commands/kv",
+              "commands/r2",
+              "commands/d1"
+            ]
+          },
+          {
+            "group": "Service Commands",
+            "pages": [
+              "commands/queues",
+              "commands/durable-objects",
+              "commands/hyperdrive",
+              "commands/vectorize"
+            ]
+          },
+          {
+            "group": "Pages Commands",
+            "pages": [
+              "commands/pages"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "commands/secret",
+              "commands/types",
+              "commands/setup"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Wrangler API",
+            "pages": [
+              "api/wrangler-api",
+              "api/configuration-schema"
+            ]
+          },
+          {
+            "group": "Miniflare API",
+            "pages": [
+              "api/miniflare-api",
+              "api/miniflare-options"
+            ]
+          },
+          {
+            "group": "Testing",
+            "pages": [
+              "api/vitest-pool-workers",
+              "api/testing-utilities"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "api/vite-plugin",
+              "api/kv-asset-handler"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

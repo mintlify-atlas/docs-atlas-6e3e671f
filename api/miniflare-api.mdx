@@ -1,0 +1,671 @@
+---
+title: Miniflare API
+description: Use Miniflare programmatically for local Workers development and testing.
+---
+
+Miniflare is a local simulator for Cloudflare Workers, powered by the same `workerd` runtime used in production. It provides a full-featured development environment with support for all Cloudflare bindings.
+
+## Installation
+
+```bash
+npm install miniflare
+```
+
+## Basic Usage
+
+```typescript
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+  script: `
+    export default {
+      async fetch(request, env) {
+        return new Response("Hello from Miniflare!");
+      }
+    }
+  `,
+  modules: true,
+});
+
+const response = await mf.dispatchFetch("http://localhost");
+console.log(await response.text());
+
+await mf.dispose();
+```
+
+## Constructor
+
+### `new Miniflare(options)`
+
+Creates a new Miniflare instance.
+
+<ParamField path="options" type="MiniflareOptions" required>
+  Configuration options
+
+  <Expandable title="MiniflareOptions (single worker)">
+    <ParamField path="name" type="string">
+      Worker name (defaults to empty string)
+    </ParamField>
+
+    <ParamField path="script" type="string">
+      Worker script content (mutually exclusive with `scriptPath`)
+    </ParamField>
+
+    <ParamField path="scriptPath" type="string">
+      Path to worker script file
+    </ParamField>
+
+    <ParamField path="modules" type="boolean" default="false">
+      Whether the worker uses ES modules format
+    </ParamField>
+
+    <ParamField path="modulesRoot" type="string">
+      Root directory for resolving module imports
+    </ParamField>
+
+    <ParamField path="compatibilityDate" type="string">
+      Runtime compatibility date (e.g., "2024-01-01")
+    </ParamField>
+
+    <ParamField path="compatibilityFlags" type="string[]">
+      Runtime compatibility flags
+    </ParamField>
+
+    <ParamField path="routes" type="string[]">
+      Route patterns this worker handles
+    </ParamField>
+
+    <ParamField path="log" type="Log">
+      Custom logger instance
+    </ParamField>
+
+    <ParamField path="verbose" type="boolean">
+      Enable verbose logging
+    </ParamField>
+
+    <ParamField path="host" type="string">
+      Host to bind HTTP server to (default: "127.0.0.1")
+    </ParamField>
+
+    <ParamField path="port" type="number">
+      Port for HTTP server (0 for random port)
+    </ParamField>
+  </Expandable>
+
+  <Expandable title="Multi-worker configuration">
+    For running multiple workers in the same Miniflare instance:
+
+    ```typescript
+    {
+      workers: [
+        {
+          name: "worker-1",
+          script: "export default { ... }",
+          modules: true,
+        },
+        {
+          name: "worker-2",
+          scriptPath: "./worker2.js",
+        }
+      ]
+    }
+    ```
+  </Expandable>
+</ParamField>
+
+## Instance Methods
+
+### `dispatchFetch()`
+
+Send an HTTP request to the worker.
+
+```typescript
+const response = await mf.dispatchFetch("http://localhost/api", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ key: "value" }),
+});
+```
+
+<ParamField path="input" type="RequestInfo" required>
+  URL or Request object
+</ParamField>
+
+<ParamField path="init" type="RequestInit">
+  Request initialization options
+</ParamField>
+
+<ResponseField name="response" type="Promise<Response>">
+  HTTP response from the worker
+</ResponseField>
+
+---
+
+### `getWorker()`
+
+Get a worker instance by name.
+
+```typescript
+const worker = await mf.getWorker("my-worker");
+
+// Dispatch fetch
+await worker.fetch("http://localhost");
+
+// Trigger scheduled event
+await worker.scheduled({ cron: "0 0 * * *" });
+
+// Send queue messages
+await worker.queue("my-queue", [
+  { id: "1", timestamp: Date.now(), body: "message" },
+]);
+```
+
+<ParamField path="name" type="string">
+  Worker name (optional for single-worker setups)
+</ParamField>
+
+<ResponseField name="worker" type="Promise<MiniflareWorker>">
+  Worker instance with methods:
+
+  <Expandable title="MiniflareWorker methods">
+    <ResponseField name="fetch" type="(input: RequestInfo, init?: RequestInit) => Promise<Response>">
+      Send HTTP request to this worker
+    </ResponseField>
+
+    <ResponseField name="scheduled" type="(options?: ScheduledOptions) => Promise<void>">
+      Trigger a scheduled event
+
+      ```typescript
+      await worker.scheduled({ cron: "0 0 * * *" });
+      ```
+    </ResponseField>
+
+    <ResponseField name="queue" type="(queueName: string, messages: Message[]) => Promise<void>">
+      Send messages to a queue consumer
+
+      ```typescript
+      await worker.queue("my-queue", [
+        { id: "1", timestamp: Date.now(), body: { key: "value" } },
+      ]);
+      ```
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `getBindings()`
+
+Get all bindings for a worker.
+
+```typescript
+const bindings = await mf.getBindings();
+
+// Access KV
+await bindings.MY_KV.put("key", "value");
+const value = await bindings.MY_KV.get("key");
+
+// Access D1
+const result = await bindings.DB.prepare("SELECT * FROM users").all();
+
+// Access R2
+await bindings.MY_BUCKET.put("file.txt", "contents");
+```
+
+<ParamField path="name" type="string">
+  Worker name (optional for single-worker setups)
+</ParamField>
+
+<ResponseField name="bindings" type="Promise<Bindings>">
+  Object containing all worker bindings (KV, D1, R2, DO, etc.)
+</ResponseField>
+
+---
+
+### `getCf()`
+
+Get the simulated `request.cf` object.
+
+```typescript
+const cf = await mf.getCf();
+console.log(cf.colo); // "DFW"
+console.log(cf.country); // "US"
+```
+
+<ResponseField name="cf" type="Promise<IncomingRequestCfProperties>">
+  Simulated cf object with geolocation and other properties
+</ResponseField>
+
+---
+
+### `getServiceURL()`
+
+Get the URL for accessing a worker.
+
+```typescript
+const url = await mf.getServiceURL("my-worker");
+console.log(url); // "http://127.0.0.1:8787"
+```
+
+<ParamField path="name" type="string">
+  Worker name
+</ParamField>
+
+<ResponseField name="url" type="Promise<URL>">
+  URL for accessing the worker
+</ResponseField>
+
+---
+
+### `setOptions()`
+
+Update Miniflare options without restarting.
+
+```typescript
+await mf.setOptions({
+  kvNamespaces: {
+    MY_KV: "new-kv-id",
+  },
+});
+```
+
+<ParamField path="options" type="Partial<MiniflareOptions>" required>
+  New options to apply
+</ParamField>
+
+<ResponseField name="void" type="Promise<void>">
+  Resolves when options are applied
+</ResponseField>
+
+---
+
+### `dispose()`
+
+Stop Miniflare and clean up resources.
+
+```typescript
+await mf.dispose();
+```
+
+<ResponseField name="void" type="Promise<void>">
+  Resolves when cleanup is complete
+</ResponseField>
+
+## Binding Configuration
+
+### KV Namespaces
+
+```typescript
+const mf = new Miniflare({
+  script: '...',
+  modules: true,
+  kvNamespaces: {
+    MY_KV: "kv-id",
+  },
+  kvPersist: true, // Persist to .mf/kv
+});
+
+const bindings = await mf.getBindings();
+await bindings.MY_KV.put("key", "value");
+```
+
+<ParamField path="kvNamespaces" type="Record<string, string>">
+  Map of binding names to namespace IDs
+</ParamField>
+
+<ParamField path="kvPersist" type="boolean | string">
+  Enable persistence (true for default path, or specify directory)
+</ParamField>
+
+---
+
+### Durable Objects
+
+```typescript
+const mf = new Miniflare({
+  script: `
+    export class Counter {
+      constructor(state, env) {
+        this.state = state;
+      }
+      async fetch(request) {
+        let count = (await this.state.storage.get("count")) || 0;
+        count++;
+        await this.state.storage.put("count", count);
+        return new Response(String(count));
+      }
+    }
+    export default {
+      async fetch(request, env) {
+        const id = env.COUNTER.idFromName("global");
+        const stub = env.COUNTER.get(id);
+        return stub.fetch(request);
+      }
+    }
+  `,
+  modules: true,
+  durableObjects: {
+    COUNTER: "Counter",
+  },
+  durableObjectsPersist: true,
+});
+```
+
+<ParamField path="durableObjects" type="Record<string, string | DurableObjectOptions>">
+  Map of binding names to class names or configuration objects
+
+  <Expandable title="DurableObjectOptions">
+    <ParamField path="className" type="string" required>
+      Durable Object class name
+    </ParamField>
+
+    <ParamField path="scriptName" type="string">
+      Worker name that exports this class (for external DOs)
+    </ParamField>
+
+    <ParamField path="unsafeUniqueKey" type="string">
+      Custom unique key for ID generation
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="durableObjectsPersist" type="boolean | string">
+  Enable persistence
+</ParamField>
+
+---
+
+### R2 Buckets
+
+```typescript
+const mf = new Miniflare({
+  script: '...',
+  modules: true,
+  r2Buckets: {
+    MY_BUCKET: "bucket-name",
+  },
+  r2Persist: true,
+});
+
+const bindings = await mf.getBindings();
+await bindings.MY_BUCKET.put("file.txt", "Hello R2!");
+const object = await bindings.MY_BUCKET.get("file.txt");
+const text = await object.text();
+```
+
+<ParamField path="r2Buckets" type="Record<string, string>">
+  Map of binding names to bucket names
+</ParamField>
+
+<ParamField path="r2Persist" type="boolean | string">
+  Enable persistence
+</ParamField>
+
+---
+
+### D1 Databases
+
+```typescript
+const mf = new Miniflare({
+  script: '...',
+  modules: true,
+  d1Databases: {
+    DB: "db-id",
+  },
+  d1Persist: true,
+});
+
+const bindings = await mf.getBindings();
+await bindings.DB.exec(`
+  CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+  INSERT INTO users (name) VALUES ('Alice'), ('Bob');
+`);
+const { results } = await bindings.DB.prepare("SELECT * FROM users").all();
+```
+
+<ParamField path="d1Databases" type="Record<string, string>">
+  Map of binding names to database IDs
+</ParamField>
+
+<ParamField path="d1Persist" type="boolean | string">
+  Enable persistence
+</ParamField>
+
+---
+
+### Service Bindings
+
+```typescript
+const mf = new Miniflare({
+  workers: [
+    {
+      name: "api",
+      script: `
+        export default {
+          async fetch(request, env) {
+            const response = await env.AUTH.fetch("http://auth/verify");
+            return new Response("Authenticated: " + response.ok);
+          }
+        }
+      `,
+      modules: true,
+      serviceBindings: {
+        AUTH: "auth",
+      },
+    },
+    {
+      name: "auth",
+      script: `
+        export default {
+          async fetch() {
+            return new Response("OK");
+          }
+        }
+      `,
+      modules: true,
+    },
+  ],
+});
+
+const response = await mf.dispatchFetch("http://localhost");
+```
+
+<ParamField path="serviceBindings" type="Record<string, string | ServiceDesignator>">
+  Map of binding names to service names or designators
+
+  <Expandable title="ServiceDesignator">
+    <ParamField path="name" type="string" required>
+      Service/worker name
+    </ParamField>
+
+    <ParamField path="entrypoint" type="string">
+      Named entrypoint to use
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+### Queue Bindings
+
+```typescript
+const mf = new Miniflare({
+  workers: [
+    {
+      name: "producer",
+      script: `
+        export default {
+          async fetch(request, env) {
+            await env.MY_QUEUE.send({ message: "Hello" });
+            return new Response("Sent");
+          }
+        }
+      `,
+      modules: true,
+      queueProducers: {
+        MY_QUEUE: "my-queue",
+      },
+    },
+    {
+      name: "consumer",
+      script: `
+        export default {
+          async queue(batch) {
+            for (const message of batch.messages) {
+              console.log(message.body);
+            }
+          }
+        }
+      `,
+      modules: true,
+      queueConsumers: {
+        "my-queue": {
+          maxBatchSize: 10,
+          maxBatchTimeout: 5,
+        },
+      },
+    },
+  ],
+});
+```
+
+<ParamField path="queueProducers" type="Record<string, string>">
+  Map of binding names to queue names
+</ParamField>
+
+<ParamField path="queueConsumers" type="Record<string, QueueConsumerOptions>">
+  Map of queue names to consumer options
+
+  <Expandable title="QueueConsumerOptions">
+    <ParamField path="maxBatchSize" type="number">
+      Maximum messages per batch (default: 10)
+    </ParamField>
+
+    <ParamField path="maxBatchTimeout" type="number">
+      Maximum seconds to wait (default: 5)
+    </ParamField>
+
+    <ParamField path="maxRetries" type="number">
+      Number of retries on failure
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+---
+
+### Environment Variables
+
+```typescript
+const mf = new Miniflare({
+  script: `
+    export default {
+      async fetch(request, env) {
+        return new Response(env.API_KEY);
+      }
+    }
+  `,
+  modules: true,
+  bindings: {
+    API_KEY: "secret-key-123",
+    DEBUG: true,
+  },
+});
+```
+
+<ParamField path="bindings" type="Record<string, any>">
+  Environment variables and simple bindings
+</ParamField>
+
+## Persistence
+
+Miniflare can persist data to disk for all storage bindings.
+
+```typescript
+const mf = new Miniflare({
+  script: '...',
+  modules: true,
+  // Persist all storage to .mf directory
+  kvPersist: true,
+  d1Persist: true,
+  r2Persist: true,
+  durableObjectsPersist: true,
+  cachePersist: true,
+  // Or specify custom paths
+  kvPersist: "./.data/kv",
+  d1Persist: "./.data/d1",
+});
+```
+
+<ParamField path="defaultPersistRoot" type="string">
+  Default root directory for all persisted data
+</ParamField>
+
+## Testing Example
+
+```typescript
+import { Miniflare } from "miniflare";
+import { beforeAll, afterAll, test, expect } from "vitest";
+
+let mf: Miniflare;
+
+beforeAll(async () => {
+  mf = new Miniflare({
+    scriptPath: "./src/index.ts",
+    modules: true,
+    kvNamespaces: { MY_KV: "test-kv" },
+    d1Databases: { DB: "test-db" },
+  });
+});
+
+afterAll(async () => {
+  await mf.dispose();
+});
+
+test("GET /", async () => {
+  const response = await mf.dispatchFetch("http://localhost/");
+  expect(response.status).toBe(200);
+  expect(await response.text()).toBe("Hello World");
+});
+
+test("KV storage", async () => {
+  const bindings = await mf.getBindings();
+  await bindings.MY_KV.put("test", "value");
+  const value = await bindings.MY_KV.get("test");
+  expect(value).toBe("value");
+});
+```
+
+## Advanced Features
+
+### Custom Logger
+
+```typescript
+import { Log, LogLevel } from "miniflare";
+
+class CustomLog extends Log {
+  log(message: string) {
+    console.log(`[LOG] ${message}`);
+  }
+  error(message: Error) {
+    console.error(`[ERROR] ${message.stack}`);
+  }
+}
+
+const mf = new Miniflare({
+  script: '...',
+  log: new CustomLog(),
+});
+```
+
+### Live Reload
+
+```typescript
+import { watch } from "chokidar";
+
+const mf = new Miniflare({ scriptPath: "./worker.js" });
+
+watch("./worker.js").on("change", async () => {
+  await mf.setOptions({ scriptPath: "./worker.js" });
+  console.log("Worker reloaded");
+});
+```
