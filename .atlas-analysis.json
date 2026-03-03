@@ -1,0 +1,196 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Cloudflare Workers SDK",
+  "projectDescription": "Command-line tools and libraries for building, testing, and deploying Cloudflare Workers applications",
+  "theme": "aspen",
+  "primaryColor": "#F38020",
+  "lightColor": "#FF9B4E",
+  "darkColor": "#D96F1A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Tools",
+            "pages": [
+              "core-tools/wrangler",
+              "core-tools/miniflare",
+              "core-tools/create-cloudflare"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/local-development",
+              "development/configuration",
+              "development/testing",
+              "development/debugging"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/deploying",
+              "deployment/versioning",
+              "deployment/rollbacks",
+              "deployment/secrets"
+            ]
+          },
+          {
+            "group": "Platform Features",
+            "pages": [
+              "platform/kv-storage",
+              "platform/r2-storage",
+              "platform/d1-database",
+              "platform/queues",
+              "platform/durable-objects",
+              "platform/pages"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/assets",
+              "advanced/bindings",
+              "advanced/environments",
+              "advanced/workflows"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Command Reference",
+        "groups": [
+          {
+            "group": "Essential Commands",
+            "pages": [
+              "commands/init",
+              "commands/dev",
+              "commands/deploy",
+              "commands/delete",
+              "commands/tail"
+            ]
+          },
+          {
+            "group": "Version Management",
+            "pages": [
+              "commands/versions",
+              "commands/deployments",
+              "commands/rollback"
+            ]
+          },
+          {
+            "group": "Storage Commands",
+            "pages": [
+              "commands/kv",
+              "commands/r2",
+              "commands/d1"
+            ]
+          },
+          {
+            "group": "Service Commands",
+            "pages": [
+              "commands/queues",
+              "commands/durable-objects",
+              "commands/hyperdrive",
+              "commands/vectorize"
+            ]
+          },
+          {
+            "group": "Pages Commands",
+            "pages": [
+              "commands/pages"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "commands/secret",
+              "commands/types",
+              "commands/setup"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Wrangler API",
+            "pages": [
+              "api/wrangler-api",
+              "api/configuration-schema"
+            ]
+          },
+          {
+            "group": "Miniflare API",
+            "pages": [
+              "api/miniflare-api",
+              "api/miniflare-options"
+            ]
+          },
+          {
+            "group": "Testing",
+            "pages": [
+              "api/vitest-pool-workers",
+              "api/testing-utilities"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "api/vite-plugin",
+              "api/kv-asset-handler"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Wrangler CLI for Workers development and deployment",
+    "Miniflare local development simulator powered by workerd runtime",
+    "Create Cloudflare (C3) project scaffolding",
+    "Workers Vitest integration for runtime testing",
+    "Vite plugin for seamless Workers integration",
+    "KV, R2, D1, Queues, and Durable Objects support",
+    "Cloudflare Pages deployment and management",
+    "Version management and gradual rollouts",
+    "Real-time log tailing and debugging",
+    "Assets management and optimization"
+  ],
+  "publicApiSurface": [
+    "wrangler init",
+    "wrangler dev",
+    "wrangler deploy",
+    "wrangler delete",
+    "wrangler tail",
+    "wrangler kv",
+    "wrangler r2",
+    "wrangler d1",
+    "wrangler queues",
+    "wrangler pages",
+    "wrangler versions",
+    "wrangler deployments",
+    "wrangler rollback",
+    "wrangler secret",
+    "wrangler types",
+    "wrangler vectorize",
+    "wrangler hyperdrive",
+    "wrangler durable-objects",
+    "npm create cloudflare",
+    "Miniflare class",
+    "@cloudflare/vitest-pool-workers",
+    "@cloudflare/vite-plugin",
+    "@cloudflare/kv-asset-handler"
+  ]
+}
